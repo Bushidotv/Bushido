@@ -1,0 +1,23 @@
+[
+    {
+        "iconUrl": "https://raw.githubusercontent.com/Bushidotv/Bushido/master/icon.png",
+        "fileHash": "sha256-d18d44f459b671558b973e79872efde833d7d8747269d77beffd532fb99f91f9",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/Bushidotv/Bushido",
+        "fileSize": 28179,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "bushidoxyz"
+        ],
+        "tvTypes": [
+            "Live",
+            "Movie"
+        ],
+        "version": 29,
+        "internalName": "Bushido",
+        "description": "Canl\u0131 TV yay\u0131nlar\u0131 & G\u00fcncel MMA Ma\u00e7 tekrarlar\u0131",
+        "url": "https://raw.githubusercontent.com/Bushidotv/Bushido/builds/Bushido.cs3",
+        "name": "Bushido"
+    }
+]
