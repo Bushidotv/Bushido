@@ -1,0 +1,23 @@
+[
+    {
+        "iconUrl": "https://raw.githubusercontent.com/Bushidotv/Bushido/master/icon.png",
+        "fileHash": "sha256-f5c475e637ce16905a9294108266ed85ab26714eca1047e72e6b933acc67bdc6",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/Bushidotv/Bushido",
+        "fileSize": 52642,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "BushidoTV"
+        ],
+        "tvTypes": [
+            "Live",
+            "Movie"
+        ],
+        "version": 32,
+        "internalName": "Bushido",
+        "description": "Canli TV yayinlari & Guncel MMA Mac tekrarlari",
+        "url": "https://raw.githubusercontent.com/Bushidotv/Bushido/builds/Bushido.cs3",
+        "name": "Bushido"
+    }
+]
