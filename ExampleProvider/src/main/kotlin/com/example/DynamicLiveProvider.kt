@@ -1,4 +1,4 @@
-package com.example
+﻿package com.example
 
 import android.util.Base64
 import com.lagradost.cloudstream3.*
@@ -16,16 +16,30 @@ class DynamicLiveProvider : MainAPI() {
     override val supportedTypes = setOf(TvType.Live)
 
     override val mainPage = mainPageOf(
-        Pair("channels", "7/24 TV Kanallari"),
-        Pair("football", "Futbol Maclari"),
-        Pair("basketball", "Basketbol"),
-        Pair("other", "Tenis & Diger Sporlar"),
-        Pair("all", "Tum Yayinlar")
+        Pair("channels", "7/24 TV Kanallari")
     )
 
     companion object {
         private const val USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+        private const val LOGO_BASE =
+            "https://raw.githubusercontent.com/nftdisk-cmyk/TestPlugins/master/netspor_logos"
+
+        private val DEFAULT_CHANNELS = listOf(
+            Pair("BEIN SPORTS 1", "/canli-mac/bein-sports-1"),
+            Pair("BEIN SPORTS 2", "/canli-mac/bein-sports-2"),
+            Pair("BEIN SPORTS 3", "/canli-mac/bein-sports-3"),
+            Pair("BEIN SPORTS 4", "/canli-mac/bein-sports-4"),
+            Pair("BEIN SPORTS 5", "/canli-mac/bein-sports-5"),
+            Pair("BEIN SPORTS MAX 1", "/canli-mac/bein-sports-max-1"),
+            Pair("BEIN SPORTS MAX 2", "/canli-mac/bein-sports-max-2"),
+            Pair("S SPORT", "/canli-mac/s-sport"),
+            Pair("S SPORT 2", "/canli-mac/s-sport-2"),
+            Pair("TRT SPOR", "/canli-mac/trt-spor"),
+            Pair("TRT 1", "/canli-mac/trt-1"),
+            Pair("A SPOR", "/canli-mac/a-spor")
+        )
 
         fun decodeBase64(input: String): String {
             val clean = input.trim()
@@ -42,10 +56,26 @@ class DynamicLiveProvider : MainAPI() {
             }
         }
 
-        private const val LOGO_BASE =
-            "https://raw.githubusercontent.com/nftdisk-cmyk/TestPlugins/master/netspor_logos"
+        fun formatChannelName(name: String): String {
+            val lower = name.lowercase().trim()
+            return when {
+                "max 1" in lower || "max-1" in lower || "max1" in lower -> "BEIN SPORTS MAX 1"
+                "max 2" in lower || "max-2" in lower || "max2" in lower -> "BEIN SPORTS MAX 2"
+                "bein" in lower && "1" in lower -> "BEIN SPORTS 1"
+                "bein" in lower && "2" in lower -> "BEIN SPORTS 2"
+                "bein" in lower && "3" in lower -> "BEIN SPORTS 3"
+                "bein" in lower && "4" in lower -> "BEIN SPORTS 4"
+                "bein" in lower && "5" in lower -> "BEIN SPORTS 5"
+                "s sport 2" in lower || "s-sport 2" in lower || "s sport2" in lower || "ssport 2" in lower || "ssport2" in lower -> "S SPORT 2"
+                "s sport" in lower || "s-sport" in lower || "ssport" in lower -> "S SPORT"
+                "trt spor" in lower || "trtspor" in lower -> "TRT SPOR"
+                "trt 1" in lower || "trt1" in lower -> "TRT 1"
+                "a spor" in lower || "aspor" in lower || "a-spor" in lower -> "A SPOR"
+                else -> name.replace("▶", "").trim()
+            }
+        }
 
-        fun getChannelLogo(name: String, fallback: String): String {
+        fun getChannelLogo(name: String): String {
             val lower = name.lowercase().trim()
             return when {
                 "max 1" in lower || "max-1" in lower || "max1" in lower -> "$LOGO_BASE/beinsportsmax1.png"
@@ -60,7 +90,7 @@ class DynamicLiveProvider : MainAPI() {
                 "trt spor" in lower || "trtspor" in lower -> "$LOGO_BASE/Trtspor.png"
                 "trt 1" in lower || "trt1" in lower -> "$LOGO_BASE/Trt1.png"
                 "a spor" in lower || "aspor" in lower || "a-spor" in lower -> "$LOGO_BASE/Aspor.png"
-                else -> fallback
+                else -> ""
             }
         }
     }
@@ -71,58 +101,50 @@ class DynamicLiveProvider : MainAPI() {
             "Referer" to "$mainUrl/"
         )
 
-        val html = try {
-            app.get(mainUrl, headers = headers).text
-        } catch (e: Exception) {
-            return newHomePageResponse(request, emptyList())
-        }
-
-        val doc = Jsoup.parse(html)
         val channelList = mutableListOf<SearchResponse>()
         val seen = HashSet<String>()
 
-        val links = doc.select("a[href*=/canli-mac/]")
-        for (a in links) {
-            val href = a.attr("href").trim()
-            val fullUrl = if (href.startsWith("http")) href else "${mainUrl.trimEnd('/')}/${href.trimStart('/')}"
-            if (!seen.add(fullUrl)) continue
+        try {
+            val html = app.get(mainUrl, headers = headers).text
+            val doc = Jsoup.parse(html)
+            val links = doc.select("a[href*=/canli-mac/]")
 
-            val rawTitle = a.text().replace("▶", "").trim()
-            if (rawTitle.isEmpty()) continue
+            for (a in links) {
+                val href = a.attr("href").trim()
+                val fullUrl = if (href.startsWith("http")) href else "${mainUrl.trimEnd('/')}/${href.trimStart('/')}"
+                val rawTitle = a.text().replace("▶", "").trim()
+                if (rawTitle.isEmpty()) continue
 
-            val img = a.selectFirst("img")?.attr("src").orEmpty()
-            val lowerHref = fullUrl.lowercase()
-
-            val isChannel = lowerHref.contains("bein") ||
-                    lowerHref.contains("s-sport") ||
-                    lowerHref.contains("trt-spor") ||
-                    lowerHref.contains("trt-1") ||
-                    lowerHref.contains("a-spor") ||
-                    lowerHref.contains("tivibu") ||
-                    lowerHref.contains("smart") ||
-                    lowerHref.contains("tv8")
-
-            val isFootball = lowerHref.contains("futbol")
-            val isBasketball = lowerHref.contains("basketbol")
-            val isOther = lowerHref.contains("tenis") || (!isChannel && !isFootball && !isBasketball)
-
-            val matchesCategory = when (request.data) {
-                "channels"   -> isChannel
-                "football"   -> isFootball && !isChannel
-                "basketball" -> isBasketball && !isChannel
-                "other"      -> isOther && !isChannel
-                else         -> true
+                val logo = getChannelLogo(rawTitle)
+                // Only include channels that have mapped logos
+                if (logo.isNotEmpty() && seen.add(fullUrl)) {
+                    val formattedName = formatChannelName(rawTitle)
+                    channelList.add(
+                        newLiveSearchResponse(
+                            name = formattedName,
+                            url = fullUrl,
+                            type = TvType.Live
+                        ) {
+                            this.posterUrl = logo
+                        }
+                    )
+                }
             }
+        } catch (e: Exception) {
+            // Fallback to static channel list if scraping fails
+        }
 
-            if (matchesCategory) {
-                val logo = getChannelLogo(rawTitle, img)
+        // Ensure all 12 channels are always present in order
+        for ((name, path) in DEFAULT_CHANNELS) {
+            val fullUrl = "${mainUrl.trimEnd('/')}$path"
+            if (seen.add(fullUrl)) {
                 channelList.add(
                     newLiveSearchResponse(
-                        name = rawTitle,
+                        name = name,
                         url = fullUrl,
                         type = TvType.Live
                     ) {
-                        this.posterUrl = logo
+                        this.posterUrl = getChannelLogo(name)
                     }
                 )
             }
@@ -132,45 +154,18 @@ class DynamicLiveProvider : MainAPI() {
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
-        val headers = mapOf(
-            "User-Agent" to USER_AGENT,
-            "Referer" to "$mainUrl/"
-        )
-
-        val html = try {
-            app.get(mainUrl, headers = headers).text
-        } catch (e: Exception) {
-            return emptyList()
-        }
-
-        val doc = Jsoup.parse(html)
-        val results = mutableListOf<SearchResponse>()
         val q = query.lowercase().trim()
-        val seen = HashSet<String>()
-
-        val links = doc.select("a[href*=/canli-mac/]")
-        for (a in links) {
-            val href = a.attr("href").trim()
-            val fullUrl = if (href.startsWith("http")) href else "${mainUrl.trimEnd('/')}/${href.trimStart('/')}"
-            if (!seen.add(fullUrl)) continue
-
-            val rawTitle = a.text().replace("▶", "").trim()
-            if (rawTitle.lowercase().contains(q)) {
-                val img = a.selectFirst("img")?.attr("src").orEmpty()
-                val logo = getChannelLogo(rawTitle, img)
-                results.add(
-                    newLiveSearchResponse(
-                        name = rawTitle,
-                        url = fullUrl,
-                        type = TvType.Live
-                    ) {
-                        this.posterUrl = logo
-                    }
-                )
+        return DEFAULT_CHANNELS
+            .filter { it.first.lowercase().contains(q) }
+            .map { (name, path) ->
+                newLiveSearchResponse(
+                    name = name,
+                    url = "${mainUrl.trimEnd('/')}$path",
+                    type = TvType.Live
+                ) {
+                    this.posterUrl = getChannelLogo(name)
+                }
             }
-        }
-
-        return results
     }
 
     override suspend fun load(url: String): LoadResponse {
@@ -185,13 +180,14 @@ class DynamicLiveProvider : MainAPI() {
             null
         }
 
-        val title = doc?.selectFirst("h1, .match-title, title")?.text()
+        val rawTitle = doc?.selectFirst("h1, .match-title, title")?.text()
             ?.replace("| Canlı Maç İzle", "")
             ?.replace("▶", "")
             ?.trim()
             ?: url.substringAfterLast("/").replace("-", " ").uppercase()
 
-        val logo = getChannelLogo(title, "")
+        val title = formatChannelName(rawTitle)
+        val logo = getChannelLogo(title)
 
         return newLiveStreamLoadResponse(
             name = title,
@@ -201,7 +197,7 @@ class DynamicLiveProvider : MainAPI() {
             if (logo.isNotEmpty()) {
                 this.posterUrl = logo
             }
-            this.plot = "Netspor Canli Yayin"
+            this.plot = "7/24 Canli TV Yayini"
         }
     }
 

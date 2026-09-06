@@ -4,7 +4,7 @@ dependencies {
 }
 
 // Sürüm numarasını tam sayı (Integer) olarak belirtiyoruz
-version = 20
+version = 21
 
 cloudstream {
     // Eklentimizin uygulamanın uzantılar sayfasında görünecek bilgileri
