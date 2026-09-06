@@ -1,4 +1,4 @@
-﻿package com.example
+package com.example
 
 import android.util.Base64
 import com.lagradost.cloudstream3.*
@@ -42,33 +42,24 @@ class DynamicLiveProvider : MainAPI() {
             }
         }
 
+        private const val LOGO_BASE =
+            "https://raw.githubusercontent.com/nftdisk-cmyk/TestPlugins/master/netspor_logos"
+
         fun getChannelLogo(name: String, fallback: String): String {
-            val lower = name.lowercase()
+            val lower = name.lowercase().trim()
             return when {
-                "bein sports 1" in lower || "bein 1" in lower ->
-                    "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/BeIN_Sports_1_logo.svg/512px-BeIN_Sports_1_logo.svg.png"
-                "bein sports 2" in lower ->
-                    "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ae/BeIN_Sports_2_logo.svg/512px-BeIN_Sports_2_logo.svg.png"
-                "bein sports 3" in lower ->
-                    "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/BeIN_Sports_3_logo.svg/512px-BeIN_Sports_3_logo.svg.png"
-                "bein sports 4" in lower ->
-                    "https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/BeIN_Sports_4_logo.svg/512px-BeIN_Sports_4_logo.svg.png"
-                "bein sports 5" in lower ->
-                    "https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/BeIN_Sports_5_logo.svg/512px-BeIN_Sports_5_logo.svg.png"
-                "bein sports max 1" in lower ->
-                    "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/BeIN_Sports_Max_1_logo.svg/512px-BeIN_Sports_Max_1_logo.svg.png"
-                "bein sports max 2" in lower ->
-                    "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cd/BeIN_Sports_Max_2_logo.svg/512px-BeIN_Sports_Max_2_logo.svg.png"
-                "s sport 2" in lower ->
-                    "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f6/S_Sport_2_logo.png/512px-S_Sport_2_logo.png"
-                "s sport" in lower ->
-                    "https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/S_Sport_logo.png/512px-S_Sport_logo.png"
-                "trt spor" in lower ->
-                    "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/TRT_Spor_logo.svg/512px-TRT_Spor_logo.svg.png"
-                "trt 1" in lower ->
-                    "https://upload.wikimedia.org/wikipedia/commons/thumb/0/01/TRT_1_logo_%282021%29.svg/512px-TRT_1_logo_%282021%29.svg.png"
-                "a spor" in lower ->
-                    "https://upload.wikimedia.org/wikipedia/tr/thumb/8/82/A_Spor_logo.png/512px-A_Spor_logo.png"
+                "max 1" in lower || "max-1" in lower || "max1" in lower -> "$LOGO_BASE/beinsportsmax1.png"
+                "max 2" in lower || "max-2" in lower || "max2" in lower -> "$LOGO_BASE/beinsportsmax2.png"
+                "bein" in lower && "1" in lower -> "$LOGO_BASE/beinsports1.png"
+                "bein" in lower && "2" in lower -> "$LOGO_BASE/beinsports2.png"
+                "bein" in lower && "3" in lower -> "$LOGO_BASE/beinsports3.png"
+                "bein" in lower && "4" in lower -> "$LOGO_BASE/beinsports4.png"
+                "bein" in lower && "5" in lower -> "$LOGO_BASE/beinsports5.png"
+                "s sport 2" in lower || "s-sport 2" in lower || "s sport2" in lower || "ssport 2" in lower || "ssport2" in lower -> "$LOGO_BASE/Ssport2.png"
+                "s sport" in lower || "s-sport" in lower || "ssport" in lower -> "$LOGO_BASE/Ssport.png"
+                "trt spor" in lower || "trtspor" in lower -> "$LOGO_BASE/Trtspor.png"
+                "trt 1" in lower || "trt1" in lower -> "$LOGO_BASE/Trt1.png"
+                "a spor" in lower || "aspor" in lower || "a-spor" in lower -> "$LOGO_BASE/Aspor.png"
                 else -> fallback
             }
         }
@@ -200,11 +191,16 @@ class DynamicLiveProvider : MainAPI() {
             ?.trim()
             ?: url.substringAfterLast("/").replace("-", " ").uppercase()
 
+        val logo = getChannelLogo(title, "")
+
         return newLiveStreamLoadResponse(
             name = title,
             url = url,
             dataUrl = url
         ) {
+            if (logo.isNotEmpty()) {
+                this.posterUrl = logo
+            }
             this.plot = "Netspor Canli Yayin"
         }
     }
