@@ -43,10 +43,10 @@ jobs:
         run: |
           cd $GITHUB_WORKSPACE/src
           chmod +x gradlew
-          ./gradlew make makePluginsJson --stacktrace > $GITHUB_WORKSPACE/builds/gradle_output.txt 2>&1 || true
-          cat $GITHUB_WORKSPACE/builds/gradle_output.txt | tail -n 100
-          find . -type f -name "*.cs3" -exec cp -vf {} $GITHUB_WORKSPACE/builds/ \; || true
-          find . -type f -name "plugins.json" -exec cp -vf {} $GITHUB_WORKSPACE/builds/ \; || true
+          ./gradlew make makePluginsJson --stacktrace
+          echo "=== Copying outputs ==="
+          find . -type f -name "*.cs3" -exec cp -vf {} $GITHUB_WORKSPACE/builds/ \;
+          find . -type f -name "plugins.json" -exec cp -vf {} $GITHUB_WORKSPACE/builds/ \;
           cp -vf repo.json $GITHUB_WORKSPACE/builds/ 2>/dev/null || true
 
       - name: Push builds
