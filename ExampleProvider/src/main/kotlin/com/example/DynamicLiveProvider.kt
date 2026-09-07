@@ -24,7 +24,7 @@ class DynamicLiveProvider : MainAPI() {
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
         private const val LOGO_BASE =
-            "https://raw.githubusercontent.com/nftdisk-cmyk/TestPlugins/master/netspor_logos"
+            "https://raw.githubusercontent.com/Bushidotv/Bushido/master/netspor_logos"
 
         private val DEFAULT_CHANNELS = listOf(
             Pair("BEIN SPORTS 1", "/canli-mac/bein-sports-1"),
