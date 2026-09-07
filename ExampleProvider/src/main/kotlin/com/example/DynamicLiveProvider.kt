@@ -1,4 +1,4 @@
-﻿package com.example
+package com.example
 
 import android.util.Base64
 import com.lagradost.cloudstream3.*
@@ -9,7 +9,7 @@ import com.lagradost.cloudstream3.utils.newExtractorLink
 import org.jsoup.Jsoup
 
 class DynamicLiveProvider : MainAPI() {
-    override var name = "Netspor Live"
+    override var name = "Bushido TR"
     override var mainUrl = "https://netspor70.top"
     override var lang = "tr"
     override val hasMainPage = true

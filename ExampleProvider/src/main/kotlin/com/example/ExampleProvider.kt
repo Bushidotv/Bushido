@@ -10,7 +10,7 @@ import org.jsoup.Jsoup
 
 class ExampleProvider : MainAPI() {
     override var mainUrl = "https://www.seirsanduk.online"
-    override var name = "Bushido TV"
+    override var name = "Bushido BG"
     override val supportedTypes = setOf(TvType.Live)
     override var lang = "bg"
     override val hasMainPage = true
