@@ -12,11 +12,14 @@ class ExamplePlugin: Plugin() {
     override fun load(context: Context) {
         activity = context as? AppCompatActivity
 
-        // Mevcut sağlayıcılar
+        // Bulgar Canlı TV (Bushido BG)
         registerMainAPI(ExampleProvider())
 
-        // Yeni dinamik Inat TV sağlayıcısı
+        // Türk Spor & Canlı TV (Bushido TR)
         registerMainAPI(DynamicLiveProvider())
+
+        // Film Arşivi (FullHDFilmizlesene)
+        registerMainAPI(FullHDFilmProvider())
 
         // Şablonun beraberinde getirdiği BlankFragment ayarlar menüsünü koruyoruz
         openSettings = {
