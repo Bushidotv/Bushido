@@ -4,7 +4,7 @@ dependencies {
 }
 
 // Sürüm numarasını tam sayı (Integer) olarak belirtiyoruz
-version = 27
+version = 28
 
 cloudstream {
     // Eklentimizin uygulamanın uzantılar sayfasında görünecek bilgileri
@@ -26,7 +26,7 @@ cloudstream {
     requiresResources = true
     language = "bg"
 
-    iconUrl = "https://www.seirsanduk.online/images/logo.png"
+    iconUrl = "https://raw.githubusercontent.com/Bushidotv/Bushido/master/icon.png"
 }
 
 android {
