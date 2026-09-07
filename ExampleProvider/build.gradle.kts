@@ -4,11 +4,11 @@ dependencies {
 }
 
 // Sürüm numarasını tam sayı (Integer) olarak belirtiyoruz
-version = 25
+version = 26
 
 cloudstream {
     // Eklentimizin uygulamanın uzantılar sayfasında görünecek bilgileri
-    description = "Bushido BG & Bushido TR canlı TV kanalları ve FullHDFilmizlesene film arşivi."
+    description = "Bushido BG & Bushido TR canlı TV kanalları."
     authors = listOf("bushidoxyz")
 
     /**
@@ -20,8 +20,8 @@ cloudstream {
     **/
     status = 1 // Uzantının durumunu aktif (Ok) olarak işaretliyoruz
 
-    // İçerik tipleri: Canlı Yayın ve Film
-    tvTypes = listOf("Live", "Movie")
+    // İçerik tipini sadece Canlı Yayın (Live) olarak güncelliyoruz
+    tvTypes = listOf("Live")
 
     requiresResources = true
     language = "bg"

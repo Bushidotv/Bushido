@@ -43,17 +43,16 @@ jobs:
         run: |
           cd $GITHUB_WORKSPACE/src
           chmod +x gradlew
-          ./gradlew make makePluginsJson --stacktrace > $GITHUB_WORKSPACE/builds/gradle_output.txt 2>&1
+          ./gradlew make makePluginsJson
           find . -type f -name "*.cs3" -exec cp -vf {} $GITHUB_WORKSPACE/builds/ \;
           find . -type f -name "plugins.json" -exec cp -vf {} $GITHUB_WORKSPACE/builds/ \;
           cp -vf repo.json $GITHUB_WORKSPACE/builds/ 2>/dev/null || true
 
       - name: Push builds
-        if: always()
         run: |
           cd $GITHUB_WORKSPACE/builds
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
-          git add -A
-          git commit --amend -m "Build $GITHUB_SHA" || git commit -m "Build $GITHUB_SHA" || exit 0
+          git add .
+          git commit --amend -m "Build $GITHUB_SHA" || exit 0
           git push --force
