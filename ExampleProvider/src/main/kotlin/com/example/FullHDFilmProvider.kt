@@ -1,14 +1,11 @@
-﻿package com.example
+package com.example
 
 import android.util.Base64
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.Qualities
-import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.utils.newExtractorLink
-import org.json.JSONArray
-import org.json.JSONObject
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import java.net.URLEncoder
@@ -72,6 +69,18 @@ class FullHDFilmProvider : MainAPI() {
             } catch (e: Exception) {
                 null
             }
+        }
+
+        /** Simple JSON string value extractor without org.json dependency */
+        private fun jsonStringValue(json: String, key: String): String? {
+            val pattern = Regex(""""${Regex.escape(key)}"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"""")
+            return pattern.find(json)?.groupValues?.get(1)
+        }
+
+        /** Extract all string values from a JSON array string like ["a","b","c"] */
+        private fun jsonArrayStrings(jsonArray: String): List<String> {
+            val pattern = Regex(""""([^"\\]*(?:\\.[^"\\]*)*)"""")
+            return pattern.findAll(jsonArray).map { it.groupValues[1] }.toList()
         }
     }
 
@@ -165,7 +174,11 @@ class FullHDFilmProvider : MainAPI() {
         val yearText = doc.selectFirst(".film-yil, .info-yil, span:contains(Yapım)")?.text()
         val year = Regex("""\b(19\d{2}|20\d{2})\b""").find(yearText.orEmpty())?.value?.toIntOrNull()
 
-        val rating = doc.selectFirst(".imdb, span[itemprop=ratingValue]")?.text()?.toRatingInt()
+        val ratingText = doc.selectFirst(".imdb, span[itemprop=ratingValue]")?.text()?.trim()
+        val rating = try {
+            ratingText?.replace(",", ".")?.toDoubleOrNull()?.let { (it * 1000).toInt() }
+        } catch (e: Exception) { null }
+
         val tags = doc.select(".kategori a, .film-tur a").map { it.text().trim() }
 
         return newMovieLoadResponse(
@@ -204,90 +217,94 @@ class FullHDFilmProvider : MainAPI() {
 
         var foundAny = false
 
-        try {
-            val rootObj = JSONObject(scxJson)
-            val keys = rootObj.keys()
-            while (keys.hasNext()) {
-                val sourceKey = keys.next()
-                val sourceObj = rootObj.optJSONObject(sourceKey) ?: continue
-                val sx = sourceObj.optJSONObject("sx") ?: continue
+        // Parse scx JSON using regex: find all "sx":{"t":["..."],"p":["..."]} blocks
+        // Structure: { "sourceKey": { "sx": { "t": [...], "p": [...] } } }
+        val sourceBlockPattern = Regex(""""(\w+)"\s*:\s*\{[^}]*"sx"\s*:\s*\{([^}]+)\}""")
+        val arrayPattern = Regex(""""[tp]"\s*:\s*(\[[^\]]*\])""")
 
-                val tokens = mutableListOf<String>()
-                val tArray = sx.optJSONArray("t")
-                if (tArray != null) {
-                    for (i in 0 until tArray.length()) {
-                        tokens.add(tArray.getString(i))
-                    }
-                }
-                val pArray = sx.optJSONArray("p")
-                if (pArray != null) {
-                    for (i in 0 until pArray.length()) {
-                        tokens.add(pArray.getString(i))
-                    }
-                }
+        for (sourceMatch in sourceBlockPattern.findAll(scxJson)) {
+            val sourceKey = sourceMatch.groupValues[1]
+            val sxContent = sourceMatch.groupValues[2]
 
-                for (token in tokens) {
-                    try {
-                        val rot = rot13(token)
-                        val playerUrl = decodeBase64(rot)
-                        if (playerUrl.isEmpty()) continue
-
-                        if (playerUrl.contains("rapidvid")) {
-                            val playerHeaders = mapOf(
-                                "User-Agent" to USER_AGENT,
-                                "Referer" to data
-                            )
-                            val playerHtml = app.get(playerUrl, headers = playerHeaders).text
-
-                            // Subtitles
-                            val trackMatch = Regex("""jwSetup\.tracks\s*=\s*(\[.+?\]);""").find(playerHtml)
-                            if (trackMatch != null) {
-                                try {
-                                    val trackArray = JSONArray(trackMatch.groupValues[1])
-                                    for (ti in 0 until trackArray.length()) {
-                                        val tObj = trackArray.getJSONObject(ti)
-                                        val trackFile = tObj.optString("file")
-                                        val trackLabel = tObj.optString("label", "Türkçe")
-                                        if (trackFile.isNotEmpty()) {
-                                            subtitleCallback.invoke(
-                                                SubtitleFile(trackLabel, trackFile)
-                                            )
-                                        }
-                                    }
-                                } catch (e: Exception) { }
-                            }
-
-                            // Stream URL
-                            val avMatch = Regex("""av\(["']([^"']+)["']\)""").find(playerHtml)
-                            if (avMatch != null) {
-                                val streamUrl = decodeRapidvid(avMatch.groupValues[1])
-                                if (!streamUrl.isNullOrEmpty()) {
-                                    callback.invoke(
-                                        newExtractorLink(
-                                            source = "FullHDFilmizlesene",
-                                            name = "FullHD - $sourceKey",
-                                            url = streamUrl,
-                                            type = ExtractorLinkType.M3U8
-                                        ) {
-                                            this.referer = "https://rapidvid.net/"
-                                            this.headers = mapOf(
-                                                "User-Agent" to USER_AGENT,
-                                                "Referer" to "https://rapidvid.net/"
-                                            )
-                                            this.quality = Qualities.P1080.value
-                                        }
-                                    )
-                                    foundAny = true
-                                }
-                            }
-                        } else {
-                            loadExtractor(playerUrl, data, subtitleCallback, callback)
-                            foundAny = true
-                        }
-                    } catch (e: Exception) { }
-                }
+            val tokens = mutableListOf<String>()
+            for (arrMatch in arrayPattern.findAll(sxContent)) {
+                tokens.addAll(jsonArrayStrings(arrMatch.groupValues[1]))
             }
-        } catch (e: Exception) { }
+
+            for (token in tokens) {
+                try {
+                    val rot = rot13(token)
+                    val playerUrl = decodeBase64(rot)
+                    if (playerUrl.isEmpty() || !playerUrl.startsWith("http")) continue
+
+                    if (playerUrl.contains("rapidvid")) {
+                        val playerHeaders = mapOf(
+                            "User-Agent" to USER_AGENT,
+                            "Referer" to data
+                        )
+                        val playerHtml = app.get(playerUrl, headers = playerHeaders).text
+
+                        // Subtitles from jwSetup.tracks
+                        val trackMatch = Regex("""tracks\s*[:=]\s*(\[.+?\])""").find(playerHtml)
+                        if (trackMatch != null) {
+                            try {
+                                val trackJson = trackMatch.groupValues[1]
+                                // Extract each track object
+                                val trackObjPattern = Regex("""\{[^}]*"file"\s*:\s*"([^"]+)"[^}]*\}""")
+                                for (tMatch in trackObjPattern.findAll(trackJson)) {
+                                    val trackFile = tMatch.groupValues[1]
+                                    val labelMatch = Regex(""""label"\s*:\s*"([^"]+)"""").find(tMatch.value)
+                                    val trackLabel = labelMatch?.groupValues?.get(1) ?: "Türkçe"
+                                    if (trackFile.isNotEmpty()) {
+                                        subtitleCallback.invoke(
+                                            SubtitleFile(trackLabel, trackFile)
+                                        )
+                                    }
+                                }
+                            } catch (e: Exception) { }
+                        }
+
+                        // Stream URL from av('...')
+                        val avMatch = Regex("""av\(["']([^"']+)["']\)""").find(playerHtml)
+                        if (avMatch != null) {
+                            val streamUrl = decodeRapidvid(avMatch.groupValues[1])
+                            if (!streamUrl.isNullOrEmpty()) {
+                                callback.invoke(
+                                    newExtractorLink(
+                                        source = "FullHDFilmizlesene",
+                                        name = "FullHD - $sourceKey",
+                                        url = streamUrl,
+                                        type = ExtractorLinkType.M3U8
+                                    ) {
+                                        this.referer = "https://rapidvid.net/"
+                                        this.headers = mapOf(
+                                            "User-Agent" to USER_AGENT,
+                                            "Referer" to "https://rapidvid.net/"
+                                        )
+                                        this.quality = Qualities.P1080.value
+                                    }
+                                )
+                                foundAny = true
+                            }
+                        }
+                    } else if (playerUrl.contains(".m3u8")) {
+                        // Direct m3u8 link
+                        callback.invoke(
+                            newExtractorLink(
+                                source = "FullHDFilmizlesene",
+                                name = "FullHD - $sourceKey",
+                                url = playerUrl,
+                                type = ExtractorLinkType.M3U8
+                            ) {
+                                this.referer = "$mainUrl/"
+                                this.quality = Qualities.P1080.value
+                            }
+                        )
+                        foundAny = true
+                    }
+                } catch (e: Exception) { }
+            }
+        }
 
         return foundAny
     }
