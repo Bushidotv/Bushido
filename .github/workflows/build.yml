@@ -43,20 +43,15 @@ jobs:
         run: |
           cd $GITHUB_WORKSPACE/src
           chmod +x gradlew
-          ./gradlew make makePluginsJson --stacktrace
-          echo "=== Found .cs3 files ==="
-          find . -name "*.cs3"
-          echo "=== Found json files ==="
-          find . -name "*.json"
-          find . -type f -name "*.cs3" -exec cp -vf {} $GITHUB_WORKSPACE/builds/ \;
-          find . -type f -name "plugins.json" -exec cp -vf {} $GITHUB_WORKSPACE/builds/ \;
+          ./gradlew make makePluginsJson --stacktrace > $GITHUB_WORKSPACE/builds/gradle_output.txt 2>&1 || true
+          cat $GITHUB_WORKSPACE/builds/gradle_output.txt | tail -n 100
+          find . -type f -name "*.cs3" -exec cp -vf {} $GITHUB_WORKSPACE/builds/ \; || true
+          find . -type f -name "plugins.json" -exec cp -vf {} $GITHUB_WORKSPACE/builds/ \; || true
           cp -vf repo.json $GITHUB_WORKSPACE/builds/ 2>/dev/null || true
 
       - name: Push builds
         run: |
           cd $GITHUB_WORKSPACE/builds
-          echo "=== Files in builds directory ==="
-          ls -la
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
           git add -A
