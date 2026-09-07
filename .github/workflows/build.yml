@@ -43,26 +43,22 @@ jobs:
         run: |
           cd $GITHUB_WORKSPACE/src
           chmod +x gradlew
-          if ! ./gradlew make makePluginsJson --stacktrace 2>&1 | tee build.log; then
-            echo "Build failed! Pushing build.log to builds branch..."
-            cp build.log $GITHUB_WORKSPACE/builds/build_error.txt
-            cd $GITHUB_WORKSPACE/builds
-            git config --local user.email "actions@github.com"
-            git config --local user.name "GitHub Actions"
-            git add build_error.txt
-            git commit --amend -m "Build error log" || git commit -m "Build error log"
-            git push --force || true
-            exit 1
-          fi
-          cp -f **/build/*.cs3 $GITHUB_WORKSPACE/builds/ 2>/dev/null || true
-          cp -f build/plugins.json $GITHUB_WORKSPACE/builds/ 2>/dev/null || true
-          cp -f repo.json $GITHUB_WORKSPACE/builds/ 2>/dev/null || true
+          ./gradlew make makePluginsJson --stacktrace
+          echo "=== Found .cs3 files ==="
+          find . -name "*.cs3"
+          echo "=== Found json files ==="
+          find . -name "*.json"
+          find . -type f -name "*.cs3" -exec cp -vf {} $GITHUB_WORKSPACE/builds/ \;
+          find . -type f -name "plugins.json" -exec cp -vf {} $GITHUB_WORKSPACE/builds/ \;
+          cp -vf repo.json $GITHUB_WORKSPACE/builds/ 2>/dev/null || true
 
       - name: Push builds
         run: |
           cd $GITHUB_WORKSPACE/builds
+          echo "=== Files in builds directory ==="
+          ls -la
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
-          git add .
-          git commit --amend -m "Build $GITHUB_SHA" || exit 0
+          git add -A
+          git commit --amend -m "Build $GITHUB_SHA" || git commit -m "Build $GITHUB_SHA" || exit 0
           git push --force
