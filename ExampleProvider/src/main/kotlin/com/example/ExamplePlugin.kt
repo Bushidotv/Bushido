@@ -12,8 +12,6 @@ class ExamplePlugin: Plugin() {
     override fun load(context: Context) {
         activity = context as? AppCompatActivity
 
-        // Mevcut sağlayıcılar
-        registerMainAPI(ExampleProvider())
 
         // Yeni dinamik Inat TV sağlayıcısı
         registerMainAPI(DynamicLiveProvider())
