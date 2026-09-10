@@ -135,7 +135,7 @@ class BushidoMMAProvider : MainAPI() {
                 // onlarca kaynağı otomatik tanır.
                 loadExtractor(link, data, subtitleCallback, callback)
                 foundAny = true
-            } catch (_: Exception) {}
+            } catch (e: Exception) {}
         }
 
         return foundAny
