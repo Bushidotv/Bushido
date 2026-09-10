@@ -18,6 +18,9 @@ class ExamplePlugin: Plugin() {
         // Yeni dinamik Inat TV sağlayıcısı
         registerMainAPI(DynamicLiveProvider())
 
+        // Full Fight Replays VOD (UFC, Boxing, K-1, MMA)
+        registerMainAPI(BushidoMMAProvider())
+
         // Şablonun beraberinde getirdiği BlankFragment ayarlar menüsünü koruyoruz
         openSettings = {
             val frag = BlankFragment(this)
