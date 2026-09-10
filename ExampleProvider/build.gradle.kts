@@ -4,11 +4,11 @@ dependencies {
 }
 
 // Sürüm numarasını tam sayı (Integer) olarak belirtiyoruz
-version = 28
+version = 29
 
 cloudstream {
     // Eklentimizin uygulamanın uzantılar sayfasında görünecek bilgileri
-    description = "Bushido BG & Bushido TR canlı TV kanalları."
+    description = "Canlı TV yayınları & Güncel MMA Maç tekrarları"
     authors = listOf("bushidoxyz")
 
     /**
@@ -20,11 +20,10 @@ cloudstream {
     **/
     status = 1 // Uzantının durumunu aktif (Ok) olarak işaretliyoruz
 
-    // İçerik tipini sadece Canlı Yayın (Live) olarak güncelliyoruz
-    tvTypes = listOf("Live")
+    tvTypes = listOf("Live", "Movie")
 
     requiresResources = true
-    language = "bg"
+    language = "tr"
 
     iconUrl = "https://raw.githubusercontent.com/Bushidotv/Bushido/master/icon.png"
 }
