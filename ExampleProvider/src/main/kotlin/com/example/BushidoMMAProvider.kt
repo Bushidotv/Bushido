@@ -10,7 +10,6 @@ class BushidoMMAProvider : MainAPI() {
     override val supportedTypes = setOf(TvType.Movie)
     override var lang = "en"
     override val hasMainPage = true
-    override val hasSearch = true
 
     override val mainPage = mainPageOf(
         Pair("$mainUrl/ufc",               "UFC Replays"),
