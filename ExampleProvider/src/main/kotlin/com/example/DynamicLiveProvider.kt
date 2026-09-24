@@ -26,6 +26,9 @@ class DynamicLiveProvider : MainAPI() {
         private const val LOGO_BASE =
             "https://raw.githubusercontent.com/Bushidotv/Bushido/master/netspor_logos"
 
+        private const val BEYAZ_TV_M3U8 =
+            "https://beyaztv-live.daioncdn.net/beyaztv/beyaztv.m3u8"
+
         private val DEFAULT_CHANNELS = listOf(
             Pair("BEIN SPORTS 1", "/canli-mac/bein-sports-1"),
             Pair("BEIN SPORTS 2", "/canli-mac/bein-sports-2"),
@@ -38,7 +41,8 @@ class DynamicLiveProvider : MainAPI() {
             Pair("S SPORT 2", "/canli-mac/s-sport-2"),
             Pair("TRT SPOR", "/canli-mac/trt-spor"),
             Pair("TRT 1", "/canli-mac/trt-1"),
-            Pair("A SPOR", "/canli-mac/a-spor")
+            Pair("A SPOR", "/canli-mac/a-spor"),
+            Pair("BEYAZ TV", "__beyaztv__")
         )
 
         fun decodeBase64(input: String): String {
@@ -88,8 +92,9 @@ class DynamicLiveProvider : MainAPI() {
                 "s sport 2" in lower || "s-sport 2" in lower || "s sport2" in lower || "ssport 2" in lower || "ssport2" in lower -> "$LOGO_BASE/Ssport2.png"
                 "s sport" in lower || "s-sport" in lower || "ssport" in lower -> "$LOGO_BASE/Ssport.png"
                 "trt spor" in lower || "trtspor" in lower -> "$LOGO_BASE/Trtspor.png"
-                "trt 1" in lower || "trt1" in lower -> "$LOGO_BASE/Trt1.png"
+                \"trt 1\" in lower || \"trt1\" in lower -> "$LOGO_BASE/Trt1.png"
                 "a spor" in lower || "aspor" in lower || "a-spor" in lower -> "$LOGO_BASE/Aspor.png"
+                "beyaz" in lower -> "https://upload.wikimedia.org/wikipedia/commons/thumb/7/71/Beyaz_TV_logo.svg/320px-Beyaz_TV_logo.svg.png"
                 else -> ""
             }
         }
@@ -134,9 +139,10 @@ class DynamicLiveProvider : MainAPI() {
             // Fallback to static channel list if scraping fails
         }
 
-        // Ensure all 12 channels are always present in order
+        // Ensure all channels are always present in order
         for ((name, path) in DEFAULT_CHANNELS) {
-            val fullUrl = "${mainUrl.trimEnd('/')}$path"
+            val fullUrl = if (path == "__beyaztv__") BEYAZ_TV_M3U8
+                          else "${mainUrl.trimEnd('/')}$path"
             if (seen.add(fullUrl)) {
                 channelList.add(
                     newLiveSearchResponse(
@@ -158,9 +164,11 @@ class DynamicLiveProvider : MainAPI() {
         return DEFAULT_CHANNELS
             .filter { it.first.lowercase().contains(q) }
             .map { (name, path) ->
+                val fullUrl = if (path == "__beyaztv__") BEYAZ_TV_M3U8
+                              else "${mainUrl.trimEnd('/')}$path"
                 newLiveSearchResponse(
                     name = name,
-                    url = "${mainUrl.trimEnd('/')}$path",
+                    url = fullUrl,
                     type = TvType.Live
                 ) {
                     this.posterUrl = getChannelLogo(name)
@@ -211,6 +219,23 @@ class DynamicLiveProvider : MainAPI() {
             "User-Agent" to USER_AGENT,
             "Referer" to "$mainUrl/"
         )
+
+        // Beyaz TV: direkt m3u8 linki, scraping gerekmez
+        if (data == BEYAZ_TV_M3U8) {
+            callback.invoke(
+                newExtractorLink(
+                    source = this.name,
+                    name = "Beyaz TV - 1080p",
+                    url = BEYAZ_TV_M3U8,
+                    type = ExtractorLinkType.M3U8
+                ) {
+                    this.referer = "https://tr.canlitv.watch/"
+                    this.headers = mapOf("User-Agent" to USER_AGENT)
+                    this.quality = Qualities.P1080.value
+                }
+            )
+            return true
+        }
 
         // 1. Fetch match page
         val mainHtml = try {
