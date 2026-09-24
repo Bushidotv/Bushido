@@ -10,7 +10,7 @@ import org.jsoup.Jsoup
 
 class DynamicLiveProvider : MainAPI() {
     override var name = "Bushido TR"
-    override var mainUrl = "https://netsportvmac.co"
+    override var mainUrl = "https://ardaspor31.top"
     override var lang = "tr"
     override val hasMainPage = true
     override val supportedTypes = setOf(TvType.Live)
