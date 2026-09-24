@@ -75,6 +75,7 @@ class DynamicLiveProvider : MainAPI() {
                 "trt spor" in lower || "trtspor" in lower -> "TRT SPOR"
                 "trt 1" in lower || "trt1" in lower -> "TRT 1"
                 "a spor" in lower || "aspor" in lower || "a-spor" in lower -> "A SPOR"
+                "beyaz" in lower -> "BEYAZ TV"
                 else -> name.replace("▶", "").trim()
             }
         }
@@ -92,7 +93,7 @@ class DynamicLiveProvider : MainAPI() {
                 "s sport 2" in lower || "s-sport 2" in lower || "s sport2" in lower || "ssport 2" in lower || "ssport2" in lower -> "$LOGO_BASE/Ssport2.png"
                 "s sport" in lower || "s-sport" in lower || "ssport" in lower -> "$LOGO_BASE/Ssport.png"
                 "trt spor" in lower || "trtspor" in lower -> "$LOGO_BASE/Trtspor.png"
-                \"trt 1\" in lower || \"trt1\" in lower -> "$LOGO_BASE/Trt1.png"
+                "trt 1" in lower || "trt1" in lower -> "$LOGO_BASE/Trt1.png"
                 "a spor" in lower || "aspor" in lower || "a-spor" in lower -> "$LOGO_BASE/Aspor.png"
                 "beyaz" in lower -> "https://upload.wikimedia.org/wikipedia/commons/thumb/7/71/Beyaz_TV_logo.svg/320px-Beyaz_TV_logo.svg.png"
                 else -> ""
@@ -177,6 +178,17 @@ class DynamicLiveProvider : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse {
+        if (url == BEYAZ_TV_M3U8) {
+            return newLiveStreamLoadResponse(
+                name = "BEYAZ TV",
+                url = url,
+                dataUrl = url
+            ) {
+                this.posterUrl = getChannelLogo("beyaz")
+                this.plot = "7/24 Canli TV Yayini"
+            }
+        }
+
         val headers = mapOf(
             "User-Agent" to USER_AGENT,
             "Referer" to "$mainUrl/"
