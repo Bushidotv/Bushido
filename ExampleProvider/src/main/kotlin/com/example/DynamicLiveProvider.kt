@@ -32,6 +32,9 @@ class DynamicLiveProvider : MainAPI() {
         private const val TRT1_M3U8 =
             "https://tv-trt1.medya.trt.com.tr/master.m3u8"
 
+        private const val ATV_M3U8 =
+            "https://rnttwmjcin.turknet.ercdn.net/lcpmvefbyo/atv/atv.m3u8"
+
         private val DEFAULT_CHANNELS = listOf(
             Pair("BEIN SPORTS 1", "/canli-mac/bein-sports-1"),
             Pair("BEIN SPORTS 2", "/canli-mac/bein-sports-2"),
@@ -45,6 +48,7 @@ class DynamicLiveProvider : MainAPI() {
             Pair("TRT SPOR", "/canli-mac/trt-spor"),
             Pair("TRT 1", "__trt1__"),
             Pair("A SPOR", "/canli-mac/a-spor"),
+            Pair("ATV", "__atv__"),
             Pair("BEYAZ TV", "__beyaztv__")
         )
 
@@ -78,6 +82,7 @@ class DynamicLiveProvider : MainAPI() {
                 "trt spor" in lower || "trtspor" in lower -> "TRT SPOR"
                 "trt 1" in lower || "trt1" in lower -> "TRT 1"
                 "a spor" in lower || "aspor" in lower || "a-spor" in lower -> "A SPOR"
+                lower == "atv" || lower == "a tv" -> "ATV"
                 "beyaz" in lower -> "BEYAZ TV"
                 else -> name.replace("▶", "").trim()
             }
@@ -98,6 +103,7 @@ class DynamicLiveProvider : MainAPI() {
                 "trt spor" in lower || "trtspor" in lower -> "$LOGO_BASE/Trtspor.png"
                 "trt 1" in lower || "trt1" in lower -> "$LOGO_BASE/Trt1.png"
                 "a spor" in lower || "aspor" in lower || "a-spor" in lower -> "$LOGO_BASE/Aspor.png"
+                lower == "atv" || lower == "a tv" -> "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ee/ATV_%28Turkish_TV_channel%29_logo.svg/320px-ATV_%28Turkish_TV_channel%29_logo.svg.png"
                 "beyaz" in lower -> "https://upload.wikimedia.org/wikipedia/commons/thumb/7/71/Beyaz_TV_logo.svg/320px-Beyaz_TV_logo.svg.png"
                 else -> ""
             }
@@ -151,6 +157,7 @@ class DynamicLiveProvider : MainAPI() {
             val fullUrl = when (path) {
                 "__beyaztv__" -> BEYAZ_TV_M3U8
                 "__trt1__" -> TRT1_M3U8
+                "__atv__" -> ATV_M3U8
                 else -> "${mainUrl.trimEnd('/')}$path"
             }
             if (seen.add(fullUrl)) {
@@ -177,6 +184,7 @@ class DynamicLiveProvider : MainAPI() {
                 val fullUrl = when (path) {
                     "__beyaztv__" -> BEYAZ_TV_M3U8
                     "__trt1__" -> TRT1_M3U8
+                    "__atv__" -> ATV_M3U8
                     else -> "${mainUrl.trimEnd('/')}$path"
                 }
                 newLiveSearchResponse(
@@ -209,6 +217,17 @@ class DynamicLiveProvider : MainAPI() {
             ) {
                 this.posterUrl = getChannelLogo("trt 1")
                 this.plot = "7/24 Canli TV Yayini (Resmi TRT 1 HD/2K)"
+            }
+        }
+
+        if (url == ATV_M3U8) {
+            return newLiveStreamLoadResponse(
+                name = "ATV",
+                url = url,
+                dataUrl = url
+            ) {
+                this.posterUrl = getChannelLogo("atv")
+                this.plot = "7/24 Canli TV Yayini"
             }
         }
 
@@ -282,6 +301,23 @@ class DynamicLiveProvider : MainAPI() {
                     type = ExtractorLinkType.M3U8
                 ) {
                     this.referer = "https://www.trtizle.com/"
+                    this.headers = mapOf("User-Agent" to USER_AGENT)
+                    this.quality = Qualities.P1080.value
+                }
+            )
+            return true
+        }
+
+        // ATV: direkt 1080p m3u8 linki
+        if (data == ATV_M3U8) {
+            callback.invoke(
+                newExtractorLink(
+                    source = this.name,
+                    name = "ATV - 1080p",
+                    url = ATV_M3U8,
+                    type = ExtractorLinkType.M3U8
+                ) {
+                    this.referer = "https://tr.canlitv.watch/"
                     this.headers = mapOf("User-Agent" to USER_AGENT)
                     this.quality = Qualities.P1080.value
                 }
