@@ -29,6 +29,9 @@ class DynamicLiveProvider : MainAPI() {
         private const val BEYAZ_TV_M3U8 =
             "https://beyaztv-live.daioncdn.net/beyaztv/beyaztv.m3u8"
 
+        private const val TRT1_M3U8 =
+            "https://tv-trt1.medya.trt.com.tr/master.m3u8"
+
         private val DEFAULT_CHANNELS = listOf(
             Pair("BEIN SPORTS 1", "/canli-mac/bein-sports-1"),
             Pair("BEIN SPORTS 2", "/canli-mac/bein-sports-2"),
@@ -40,7 +43,7 @@ class DynamicLiveProvider : MainAPI() {
             Pair("S SPORT", "/canli-mac/s-sport"),
             Pair("S SPORT 2", "/canli-mac/s-sport-2"),
             Pair("TRT SPOR", "/canli-mac/trt-spor"),
-            Pair("TRT 1", "/canli-mac/trt-1"),
+            Pair("TRT 1", "__trt1__"),
             Pair("A SPOR", "/canli-mac/a-spor"),
             Pair("BEYAZ TV", "__beyaztv__")
         )
@@ -121,6 +124,9 @@ class DynamicLiveProvider : MainAPI() {
                 val rawTitle = a.text().replace("▶", "").trim()
                 if (rawTitle.isEmpty()) continue
 
+                // TRT 1 ve Beyaz TV doğrudan resmi/özel CDN'den eklenecektir
+                if (fullUrl.contains("trt-1") || rawTitle.lowercase().contains("trt 1")) continue
+
                 val logo = getChannelLogo(rawTitle)
                 // Only include channels that have mapped logos
                 if (logo.isNotEmpty() && seen.add(fullUrl)) {
@@ -142,8 +148,11 @@ class DynamicLiveProvider : MainAPI() {
 
         // Ensure all channels are always present in order
         for ((name, path) in DEFAULT_CHANNELS) {
-            val fullUrl = if (path == "__beyaztv__") BEYAZ_TV_M3U8
-                          else "${mainUrl.trimEnd('/')}$path"
+            val fullUrl = when (path) {
+                "__beyaztv__" -> BEYAZ_TV_M3U8
+                "__trt1__" -> TRT1_M3U8
+                else -> "${mainUrl.trimEnd('/')}$path"
+            }
             if (seen.add(fullUrl)) {
                 channelList.add(
                     newLiveSearchResponse(
@@ -165,8 +174,11 @@ class DynamicLiveProvider : MainAPI() {
         return DEFAULT_CHANNELS
             .filter { it.first.lowercase().contains(q) }
             .map { (name, path) ->
-                val fullUrl = if (path == "__beyaztv__") BEYAZ_TV_M3U8
-                              else "${mainUrl.trimEnd('/')}$path"
+                val fullUrl = when (path) {
+                    "__beyaztv__" -> BEYAZ_TV_M3U8
+                    "__trt1__" -> TRT1_M3U8
+                    else -> "${mainUrl.trimEnd('/')}$path"
+                }
                 newLiveSearchResponse(
                     name = name,
                     url = fullUrl,
@@ -186,6 +198,17 @@ class DynamicLiveProvider : MainAPI() {
             ) {
                 this.posterUrl = getChannelLogo("beyaz")
                 this.plot = "7/24 Canli TV Yayini"
+            }
+        }
+
+        if (url == TRT1_M3U8 || url.contains("trt-1")) {
+            return newLiveStreamLoadResponse(
+                name = "TRT 1",
+                url = url,
+                dataUrl = TRT1_M3U8
+            ) {
+                this.posterUrl = getChannelLogo("trt 1")
+                this.plot = "7/24 Canli TV Yayini (Resmi TRT 1 HD/2K)"
             }
         }
 
@@ -242,6 +265,23 @@ class DynamicLiveProvider : MainAPI() {
                     type = ExtractorLinkType.M3U8
                 ) {
                     this.referer = "https://tr.canlitv.watch/"
+                    this.headers = mapOf("User-Agent" to USER_AGENT)
+                    this.quality = Qualities.P1080.value
+                }
+            )
+            return true
+        }
+
+        // TRT 1: resmi doğrudan m3u8 linki (1440p / 1080p), scraping gerekmez
+        if (data == TRT1_M3U8 || data.contains("trt-1")) {
+            callback.invoke(
+                newExtractorLink(
+                    source = this.name,
+                    name = "TRT 1 - Resmi HD/2K",
+                    url = TRT1_M3U8,
+                    type = ExtractorLinkType.M3U8
+                ) {
+                    this.referer = "https://www.trtizle.com/"
                     this.headers = mapOf("User-Agent" to USER_AGENT)
                     this.quality = Qualities.P1080.value
                 }
