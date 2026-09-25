@@ -220,14 +220,14 @@ class DynamicLiveProvider : MainAPI() {
             }
         }
 
-        if (url == ATV_M3U8) {
+        if (url == ATV_M3U8 || url == "__atv__") {
             return newLiveStreamLoadResponse(
                 name = "ATV",
                 url = url,
                 dataUrl = url
             ) {
                 this.posterUrl = getChannelLogo("atv")
-                this.plot = "7/24 Canli TV Yayini"
+                this.plot = "7/24 Canli TV Yayini (1080p 50FPS)"
             }
         }
 
@@ -308,12 +308,50 @@ class DynamicLiveProvider : MainAPI() {
             return true
         }
 
-        // ATV: direkt 1080p m3u8 linki
-        if (data == ATV_M3U8) {
+        // ATV: GledaiTV üzerinden 1080p 50fps akış (Bulgaristan ve yurtdışında açık) + Resmi alternatif
+        if (data == ATV_M3U8 || data == "__atv__") {
+            try {
+                val pHeaders = mapOf(
+                    "User-Agent" to USER_AGENT,
+                    "Referer" to "https://www.gledaitv.fan/"
+                )
+                val html = app.get("https://cdn.gledaitv.fan/embed_player.php?my=atv", headers = pHeaders).text
+                val b64Match = Regex("""data-script=["']([^"']+)["']""").find(html)
+                var streamUrl: String? = null
+                if (b64Match != null) {
+                    val decoded = decodeBase64(b64Match.groupValues[1])
+                    streamUrl = Regex("""streamUrl\s*=\s*["']([^"']+)["']""").find(decoded)?.groupValues?.get(1)
+                }
+                if (streamUrl == null) {
+                    streamUrl = Regex("""streamUrl\s*=\s*["']([^"']+)["']""").find(html)?.groupValues?.get(1)
+                }
+
+                if (streamUrl != null) {
+                    callback.invoke(
+                        newExtractorLink(
+                            source = this.name,
+                            name = "ATV - GledaiTV (1080p 50FPS)",
+                            url = streamUrl,
+                            type = ExtractorLinkType.M3U8
+                        ) {
+                            this.referer = "https://cdn.gledaitv.fan/"
+                            this.headers = mapOf(
+                                "User-Agent" to USER_AGENT,
+                                "Referer" to "https://cdn.gledaitv.fan/",
+                                "Origin" to "https://cdn.gledaitv.fan"
+                            )
+                            this.quality = Qualities.P1080.value
+                        }
+                    )
+                }
+            } catch (e: Throwable) {
+                // Fallback to official stream below
+            }
+
             callback.invoke(
                 newExtractorLink(
                     source = this.name,
-                    name = "ATV - 1080p",
+                    name = "ATV - 1080p (Resmi TR)",
                     url = ATV_M3U8,
                     type = ExtractorLinkType.M3U8
                 ) {
