@@ -19,6 +19,11 @@ class ExamplePlugin: Plugin() {
         // Full Fight Replays VOD (UFC, Boxing, K-1, MMA)
         registerMainAPI(BushidoMMAProvider())
 
+        // FilmMakinesi (Filmler)
+        registerMainAPI(FilmMakinesi())
+        registerExtractorAPI(CloseLoadExtractor())
+        registerExtractorAPI(RapidExtractor())
+
         // Şablonun beraberinde getirdiği BlankFragment ayarlar menüsünü koruyoruz
         openSettings = {
             val frag = BlankFragment(this)
