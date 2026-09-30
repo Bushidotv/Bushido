@@ -12,7 +12,7 @@ class BushidoMMAProvider : MainAPI() {
     override val hasMainPage = true
 
     override val mainPage = mainPageOf(
-        Pair("$mainUrl",                    "All Fights"),
+        Pair("$mainUrl/new/",               "All Fights"),
         Pair("$mainUrl/search/ufc/",        "UFC"),
         Pair("$mainUrl/search/bellator/",   "Bellator MMA"),
         Pair("$mainUrl/search/one/",        "ONE Championship"),
@@ -34,13 +34,12 @@ class BushidoMMAProvider : MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val baseUrl = request.data
 
-        // Ana sayfa sayfalama: ?page=2, ?page=3 ...
+        // Ana sayfa: /new/1, /new/2 ... /new/436
         // Arama sayfaları: /search/ufc/?page=2
         val url = if (page == 1) {
-            baseUrl
+            if (baseUrl.contains("/new/")) "${baseUrl}1" else baseUrl
         } else {
-            if (baseUrl.contains("/search/")) "$baseUrl?page=$page"
-            else "$baseUrl?page=$page"
+            if (baseUrl.contains("/new/")) "$mainUrl/new/$page" else "$baseUrl?page=$page"
         }
 
         val doc = app.get(url, headers = browserHeaders).document
