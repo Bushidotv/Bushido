@@ -35,6 +35,9 @@ class DynamicLiveProvider : MainAPI() {
         private const val ATV_M3U8 =
             "https://rnttwmjcin.turknet.ercdn.net/lcpmvefbyo/atv/atv.m3u8"
 
+        private const val TV8_M3U8 =
+            "https://tv8.daioncdn.net/tv8/tv8.m3u8?app=7ddc255a-ef47-4e81-ab14-c0e5f2949788&ce=3"
+
         private val DEFAULT_CHANNELS = listOf(
             Pair("BEIN SPORTS 1", "/canli-mac/bein-sports-1"),
             Pair("BEIN SPORTS 2", "/canli-mac/bein-sports-2"),
@@ -49,8 +52,20 @@ class DynamicLiveProvider : MainAPI() {
             Pair("TRT 1", "__trt1__"),
             Pair("A SPOR", "/canli-mac/a-spor"),
             Pair("ATV", "__atv__"),
+            Pair("TV8", "__tv8__"),
             Pair("BEYAZ TV", "__beyaztv__")
         )
+
+        fun decodeCanliTvHex(hex: String): String {
+            val sb = java.lang.StringBuilder()
+            var i = 0
+            while (i < hex.length - 1) {
+                val byteVal = hex.substring(i, i + 2).toIntOrNull(16) ?: break
+                sb.append(byteVal.toChar())
+                i += 2
+            }
+            return sb.toString().reversed()
+        }
 
         fun decodeBase64(input: String): String {
             val clean = input.trim()
@@ -83,6 +98,7 @@ class DynamicLiveProvider : MainAPI() {
                 "trt 1" in lower || "trt1" in lower -> "TRT 1"
                 "a spor" in lower || "aspor" in lower || "a-spor" in lower -> "A SPOR"
                 lower == "atv" || lower == "a tv" -> "ATV"
+                lower == "tv8" || lower == "tv 8" -> "TV8"
                 "beyaz" in lower -> "BEYAZ TV"
                 else -> name.replace("▶", "").trim()
             }
@@ -104,6 +120,7 @@ class DynamicLiveProvider : MainAPI() {
                 "trt 1" in lower || "trt1" in lower -> "$LOGO_BASE/Trt1.png"
                 "a spor" in lower || "aspor" in lower || "a-spor" in lower -> "$LOGO_BASE/Aspor.png"
                 lower == "atv" || lower == "a tv" -> "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ee/ATV_%28Turkish_TV_channel%29_logo.svg/320px-ATV_%28Turkish_TV_channel%29_logo.svg.png"
+                lower == "tv8" || lower == "tv 8" -> "https://tr.canlitv.watch/channels/tv8.webp"
                 "beyaz" in lower -> "https://upload.wikimedia.org/wikipedia/commons/thumb/7/71/Beyaz_TV_logo.svg/320px-Beyaz_TV_logo.svg.png"
                 else -> ""
             }
@@ -130,8 +147,10 @@ class DynamicLiveProvider : MainAPI() {
                 val rawTitle = a.text().replace("▶", "").trim()
                 if (rawTitle.isEmpty()) continue
 
-                // TRT 1 ve Beyaz TV doğrudan resmi/özel CDN'den eklenecektir
-                if (fullUrl.contains("trt-1") || rawTitle.lowercase().contains("trt 1")) continue
+                // TRT 1, ATV, TV8 ve Beyaz TV doğrudan resmi/özel CDN'den eklenecektir
+                if (fullUrl.contains("trt-1") || rawTitle.lowercase().contains("trt 1") ||
+                    fullUrl.contains("atv") || rawTitle.lowercase().contains("atv") ||
+                    fullUrl.contains("tv8") || rawTitle.lowercase().contains("tv8")) continue
 
                 val logo = getChannelLogo(rawTitle)
                 // Only include channels that have mapped logos
@@ -158,6 +177,7 @@ class DynamicLiveProvider : MainAPI() {
                 "__beyaztv__" -> BEYAZ_TV_M3U8
                 "__trt1__" -> TRT1_M3U8
                 "__atv__" -> ATV_M3U8
+                "__tv8__" -> TV8_M3U8
                 else -> "${mainUrl.trimEnd('/')}$path"
             }
             if (seen.add(fullUrl)) {
@@ -185,6 +205,7 @@ class DynamicLiveProvider : MainAPI() {
                     "__beyaztv__" -> BEYAZ_TV_M3U8
                     "__trt1__" -> TRT1_M3U8
                     "__atv__" -> ATV_M3U8
+                    "__tv8__" -> TV8_M3U8
                     else -> "${mainUrl.trimEnd('/')}$path"
                 }
                 newLiveSearchResponse(
@@ -228,6 +249,17 @@ class DynamicLiveProvider : MainAPI() {
             ) {
                 this.posterUrl = getChannelLogo("atv")
                 this.plot = "7/24 Canli TV Yayini (1080p 50FPS)"
+            }
+        }
+
+        if (url == TV8_M3U8 || url == "__tv8__") {
+            return newLiveStreamLoadResponse(
+                name = "TV8",
+                url = url,
+                dataUrl = url
+            ) {
+                this.posterUrl = getChannelLogo("tv8")
+                this.plot = "7/24 Canli TV Yayini (1080p HD)"
             }
         }
 
@@ -360,6 +392,51 @@ class DynamicLiveProvider : MainAPI() {
                     this.quality = Qualities.P1080.value
                 }
             )
+            return true
+        }
+
+        // TV8: Resmi 1080p Daion CDN + canlitv.watch/tv8/4 (Yayın 4)
+        if (data == TV8_M3U8 || data == "__tv8__") {
+            callback.invoke(
+                newExtractorLink(
+                    source = this.name,
+                    name = "TV8 - 1080p (Resmi Daion CDN)",
+                    url = TV8_M3U8,
+                    type = ExtractorLinkType.M3U8
+                ) {
+                    this.referer = "https://www.tv8.com.tr/"
+                    this.headers = mapOf("User-Agent" to USER_AGENT)
+                    this.quality = Qualities.P1080.value
+                }
+            )
+
+            try {
+                val cHeaders = mapOf(
+                    "User-Agent" to USER_AGENT,
+                    "Referer" to "https://tr.canlitv.watch/"
+                )
+                val html = app.get("https://tr.canlitv.watch/tv8/4", headers = cHeaders).text
+                val fMatch = Regex("""data-f=["']([0-9a-fA-F]+)["']""").find(html)
+                if (fMatch != null) {
+                    val streamUrl = decodeCanliTvHex(fMatch.groupValues[1])
+                    if (streamUrl.startsWith("http")) {
+                        callback.invoke(
+                            newExtractorLink(
+                                source = this.name,
+                                name = "TV8 - CanliTV (Yayın 4)",
+                                url = streamUrl,
+                                type = ExtractorLinkType.M3U8
+                            ) {
+                                this.referer = "https://tr.canlitv.watch/"
+                                this.headers = mapOf("User-Agent" to USER_AGENT)
+                                this.quality = Qualities.P720.value
+                            }
+                        )
+                    }
+                }
+            } catch (e: Throwable) {
+                // Ignore fallback error
+            }
             return true
         }
 
