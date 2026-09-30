@@ -136,37 +136,68 @@ class BushidoMMAProvider : MainAPI() {
         var foundAny = false
 
         // Free Server butonlarını topla
+        // Tüm Free Server butonlarını al — watchmmafull ve cagetonight dahil
         val embedLinks = doc.select("div.watch-link-grid a.watch-link-btn[href]")
             .map { it.attr("href").trim() }
-            .filter { it.startsWith("http") && it.contains("watchmmafull.com/embed/") }
+            .filter { href ->
+                href.startsWith("http") && (
+                    href.contains("watchmmafull.com/embed/") ||
+                    href.contains("cagetonight.com/ctn-embed/") ||
+                    href.contains("/embed/")
+                )
+            }
             .distinct()
 
         for (embedUrl in embedLinks) {
             try {
-                // Her embed sayfasını aç ve içindeki iframe src'yi çek
-                val embedDoc = app.get(
-                    embedUrl,
-                    headers = browserHeaders + mapOf("Referer" to data)
-                ).document
+                val embedHeaders = browserHeaders + mapOf("Referer" to data)
 
-                val iframeSrc = embedDoc.selectFirst("div.we-player iframe[src]")
-                    ?.attr("src")
-                    ?.trim()
-                    ?: continue
+                when {
+                    // ── watchmmafull.com/embed/XXXX ──────────────────────────────
+                    // Statik HTML, iframe src doğrudan HTML'de
+                    embedUrl.contains("watchmmafull.com/embed/") -> {
+                        val embedDoc = app.get(embedUrl, headers = embedHeaders).document
+                        val iframeSrc = embedDoc.selectFirst("div.we-player iframe[src]")
+                            ?.attr("src")?.trim() ?: continue
+                        if (iframeSrc.isBlank() || !iframeSrc.startsWith("http") || isAdUrl(iframeSrc)) continue
+                        try {
+                            loadExtractor(iframeSrc, embedUrl, subtitleCallback, callback)
+                            foundAny = true
+                        } catch (_: Exception) {}
+                    }
 
-                // Boş veya reklam URL'lerini atla
-                if (iframeSrc.isBlank()) continue
-                if (!iframeSrc.startsWith("http")) continue
-                if (isAdUrl(iframeSrc)) continue
+                    // ── cagetonight.com/ctn-embed/XXXX ───────────────────────────
+                    // JS-rendered sayfa; iframe src HTML'de gözükmeyebilir.
+                    // Önce HTML'i parse et, yoksa URL'yi doğrudan extractor'a ver.
+                    embedUrl.contains("cagetonight.com/ctn-embed/") -> {
+                        val embedDoc = app.get(embedUrl, headers = embedHeaders).document
 
-                // CloudStream'in extractor zincirini çalıştır
-                // mmaringen.com, vixeo.io, dailymotion, streamwish, filemoon
-                // gibi yüzlerce kaynağı otomatik tanır
-                try {
-                    loadExtractor(iframeSrc, embedUrl, subtitleCallback, callback)
-                    foundAny = true
-                } catch (_: Exception) {
-                    // Extractor tanımazsa devam et
+                        // iframe varsa kullan
+                        val iframeSrc = embedDoc.select("iframe[src]")
+                            .map { it.attr("src").trim() }
+                            .firstOrNull { it.startsWith("http") && !isAdUrl(it) }
+
+                        if (iframeSrc != null) {
+                            try {
+                                loadExtractor(iframeSrc, embedUrl, subtitleCallback, callback)
+                                foundAny = true
+                            } catch (_: Exception) {}
+                        } else {
+                            // JS ile yükleniyor olabilir; embed URL'yi doğrudan dene
+                            try {
+                                loadExtractor(embedUrl, data, subtitleCallback, callback)
+                                foundAny = true
+                            } catch (_: Exception) {}
+                        }
+                    }
+
+                    // ── Diğer embed URL'leri ──────────────────────────────────────
+                    else -> {
+                        try {
+                            loadExtractor(embedUrl, data, subtitleCallback, callback)
+                            foundAny = true
+                        } catch (_: Exception) {}
+                    }
                 }
             } catch (_: Exception) {
                 // Embed sayfası açılamazsa devam et
