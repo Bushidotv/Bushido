@@ -5,22 +5,21 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.loadExtractor
 
 class BushidoMMAProvider : MainAPI() {
-    override var mainUrl = "https://fullfightreplays.com"
+    override var mainUrl = "https://watchmmafull.com"
     override var name = "Bushido MMA"
     override val supportedTypes = setOf(TvType.Movie)
     override var lang = "en"
     override val hasMainPage = true
 
     override val mainPage = mainPageOf(
-        Pair("$mainUrl/ufc",               "UFC Replays"),
-        Pair("$mainUrl/boxing",            "Boxing Replays"),
-        Pair("$mainUrl/k-1",               "K-1 / Muay Thai / Kickboxing"),
-        Pair("$mainUrl/bellator",          "Bellator MMA"),
-        Pair("$mainUrl/one-championship",  "One Championship"),
-        Pair("$mainUrl/bkfc",              "BKFC"),
-        Pair("$mainUrl/cage-warriors",     "Cage Warriors"),
-        Pair("$mainUrl/ksw",               "KSW"),
-        Pair("$mainUrl/invicta-fc",        "Invicta FC"),
+        Pair("$mainUrl",                    "All Fights"),
+        Pair("$mainUrl/search/ufc/",        "UFC"),
+        Pair("$mainUrl/search/bellator/",   "Bellator MMA"),
+        Pair("$mainUrl/search/one/",        "ONE Championship"),
+        Pair("$mainUrl/search/boxing/",     "Boxing"),
+        Pair("$mainUrl/search/kickboxing/", "Kickboxing / K-1"),
+        Pair("$mainUrl/search/pfl/",        "PFL"),
+        Pair("$mainUrl/search/ksw/",        "KSW"),
     )
 
     private val browserHeaders = mapOf(
@@ -33,18 +32,24 @@ class BushidoMMAProvider : MainAPI() {
     // 1. ANA SAYFA — kategorilere göre listeyi çek
     // ─────────────────────────────────────────────
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val categoryUrl = request.data
-        // Sayfalama: site /videos/0-{page}-{timestamp} gibi bir yapı kullanıyor,
-        // ama normal kategori URL'leri için sayfayı GET ile çekiyoruz.
-        val url = if (page == 1) categoryUrl else "$categoryUrl/$page"
+        val baseUrl = request.data
+
+        // Ana sayfa sayfalama: ?page=2, ?page=3 ...
+        // Arama sayfaları: /search/ufc/?page=2
+        val url = if (page == 1) {
+            baseUrl
+        } else {
+            if (baseUrl.contains("/search/")) "$baseUrl?page=$page"
+            else "$baseUrl?page=$page"
+        }
 
         val doc = app.get(url, headers = browserHeaders).document
         val items = parseListings(doc)
 
         return newHomePageResponse(
-            name     = request.name,
-            list     = items,
-            hasNext  = items.size >= 10   // 10'dan az gelirse son sayfadayız
+            name    = request.name,
+            list    = items,
+            hasNext = items.size >= 10
         )
     }
 
@@ -52,26 +57,28 @@ class BushidoMMAProvider : MainAPI() {
     // 2. ARAMA
     // ─────────────────────────────────────────────
     override suspend fun search(query: String): List<SearchResponse> {
-        val url = "$mainUrl/search/?q=${query.replace(" ", "+")}"
+        val url = "$mainUrl/search/${query.trim().replace(" ", "-")}/"
         val doc = app.get(url, headers = browserHeaders).document
         return parseListings(doc)
     }
 
     // ─────────────────────────────────────────────
     // 3. YARDIMCI — Kart listesini parse et
+    // Kart yapısı: li.video-item-compact > h2.video-title-compact > a
     // ─────────────────────────────────────────────
     private fun parseListings(doc: org.jsoup.nodes.Document): List<SearchResponse> {
-        return doc.select("div.short_item").mapNotNull { el ->
-            val anchor  = el.selectFirst("div.poster a") ?: return@mapNotNull null
-            val href    = anchor.attr("href").trim()
-            val poster  = anchor.selectFirst("img")?.attr("src")?.let { fixUrl(it) }
-            val title   = el.selectFirst("div.short_content h3 a")?.text()?.trim()
-                ?: return@mapNotNull null
+        return doc.select("li.video-item-compact").mapNotNull { el ->
+            val anchor = el.selectFirst("h2.video-title-compact a") ?: return@mapNotNull null
+            val href   = anchor.attr("href").trim()
+            val title  = anchor.text().trim().ifEmpty { return@mapNotNull null }
+
+            // Poster: fighter fotoğrafını dene, yoksa null
+            val poster = el.selectFirst("div.cfs-photo img")?.attr("src")?.let { fixUrl(it) }
 
             newMovieSearchResponse(
-                name      = title,
-                url       = fixUrl(href),
-                type      = TvType.Movie
+                name = title,
+                url  = fixUrl(href),
+                type = TvType.Movie
             ) {
                 this.posterUrl = poster
             }
@@ -79,25 +86,26 @@ class BushidoMMAProvider : MainAPI() {
     }
 
     // ─────────────────────────────────────────────
-    // 4. YÜKLE — Detay sayfası
+    // 4. DETAY SAYFASI
     // ─────────────────────────────────────────────
     override suspend fun load(url: String): LoadResponse {
         val doc = app.get(url, headers = browserHeaders).document
 
-        val title = doc.selectFirst("h1.h_title")?.text()?.trim()
+        val title = doc.selectFirst("h1.ft-title, h1")?.text()?.trim()
             ?: doc.title().trim()
 
-        val poster = doc.selectFirst("div.full_img img")?.attr("src")?.let { fixUrl(it) }
+        // Poster: Fight card'dan büyük resim dene
+        val poster = doc.selectFirst("div.cfs-photo img, div.card-fighter-strip img")
+            ?.attr("src")?.let { fixUrl(it) }
 
-        val description = doc.selectFirst("div.fullstory p:last-of-type")?.text()?.trim()
-            ?: "UFC, MMA, Boxing, K-1 full fight replay."
+        val description = doc.selectFirst("div.ft-desc")?.text()?.trim()
+            ?: "MMA full fight replay."
 
-        // Video linklerini veri olarak URL'ye ekleyerek geçiriyoruz
         return newMovieLoadResponse(
-            name     = title,
-            url      = url,
-            dataUrl  = url,
-            type     = TvType.Movie
+            name    = title,
+            url     = url,
+            dataUrl = url,
+            type    = TvType.Movie
         ) {
             this.posterUrl = poster
             this.plot      = description
@@ -105,7 +113,19 @@ class BushidoMMAProvider : MainAPI() {
     }
 
     // ─────────────────────────────────────────────
-    // 5. LİNKLERİ YÜKLE — Tüm mirror/embed linkleri
+    // 5. LİNKLERİ YÜKLE
+    //
+    // Akış:
+    //   Detay sayfası
+    //     └─► div.watch-link-grid a.watch-link-btn  (embed URL'leri)
+    //           https://watchmmafull.com/embed/XXXXXX
+    //               └─► we-player > iframe src       (gerçek oynatıcı)
+    //                     mmaringen.com/?v=...
+    //                     vixeo.io/e/...
+    //                     dailymotion.com/...  vb.
+    //
+    // Reklam sayfalarını (pubadx, histats vb.) filtrele,
+    // sadece "Free Server" butonlarındaki embed linklerini işle.
     // ─────────────────────────────────────────────
     override suspend fun loadLinks(
         data: String,
@@ -116,27 +136,58 @@ class BushidoMMAProvider : MainAPI() {
         val doc = app.get(data, headers = browserHeaders).document
         var foundAny = false
 
-        // Tüm linkleri topla
-        val links = doc.select("div.fullstory a[href]")
+        // Free Server butonlarını topla
+        val embedLinks = doc.select("div.watch-link-grid a.watch-link-btn[href]")
             .map { it.attr("href").trim() }
-            .filter { href ->
-                href.startsWith("http") &&
-                !href.contains("fullfightreplays.com") &&
-                !href.contains("javascript") &&
-                href.isNotEmpty()
-            }
+            .filter { it.startsWith("http") && it.contains("watchmmafull.com/embed/") }
             .distinct()
 
-        for (link in links) {
+        for (embedUrl in embedLinks) {
             try {
-                // CloudStream'in built-in extractor zincirini çalıştır.
-                // Dailymotion, OK.ru, Filemoon, StreamWish gibi
-                // onlarca kaynağı otomatik tanır.
-                loadExtractor(link, data, subtitleCallback, callback)
-                foundAny = true
-            } catch (e: Exception) {}
+                // Her embed sayfasını aç ve içindeki iframe src'yi çek
+                val embedDoc = app.get(
+                    embedUrl,
+                    headers = browserHeaders + mapOf("Referer" to data)
+                ).document
+
+                val iframeSrc = embedDoc.selectFirst("div.we-player iframe[src]")
+                    ?.attr("src")
+                    ?.trim()
+                    ?: continue
+
+                // Boş veya reklam URL'lerini atla
+                if (iframeSrc.isBlank()) continue
+                if (!iframeSrc.startsWith("http")) continue
+                if (isAdUrl(iframeSrc)) continue
+
+                // CloudStream'in extractor zincirini çalıştır
+                // mmaringen.com, vixeo.io, dailymotion, streamwish, filemoon
+                // gibi yüzlerce kaynağı otomatik tanır
+                try {
+                    loadExtractor(iframeSrc, embedUrl, subtitleCallback, callback)
+                    foundAny = true
+                } catch (_: Exception) {
+                    // Extractor tanımazsa devam et
+                }
+            } catch (_: Exception) {
+                // Embed sayfası açılamazsa devam et
+            }
         }
 
         return foundAny
+    }
+
+    // ─────────────────────────────────────────────
+    // Reklam / tracker URL filtresi
+    // ─────────────────────────────────────────────
+    private fun isAdUrl(url: String): Boolean {
+        val adDomains = listOf(
+            "pubadx.one", "histats.com", "cloudflareinsights.com",
+            "googletagmanager.com", "googlesyndication.com",
+            "llvpn.com", "adsbygoogle", "doubleclick.net",
+            "amazon-adsystem.com", "exoclick.com", "trafficjunky.com",
+            "juicyads.com", "adnxs.com", "adsrvr.org"
+        )
+        return adDomains.any { url.contains(it) }
     }
 }
