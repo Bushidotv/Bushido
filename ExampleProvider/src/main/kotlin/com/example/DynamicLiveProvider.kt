@@ -121,7 +121,7 @@ class DynamicLiveProvider : MainAPI() {
                 "a spor" in lower || "aspor" in lower || "a-spor" in lower -> "$LOGO_BASE/Aspor.png"
                 lower == "atv" || lower == "a tv" -> "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ee/ATV_%28Turkish_TV_channel%29_logo.svg/320px-ATV_%28Turkish_TV_channel%29_logo.svg.png"
                 lower == "tv8" || lower == "tv 8" -> "https://tr.canlitv.watch/channels/tv8.webp"
-                "beyaz" in lower -> "https://upload.wikimedia.org/wikipedia/commons/thumb/7/71/Beyaz_TV_logo.svg/320px-Beyaz_TV_logo.svg.png"
+                "beyaz" in lower -> "$LOGO_BASE/Beyaztv.png"
                 else -> ""
             }
         }
