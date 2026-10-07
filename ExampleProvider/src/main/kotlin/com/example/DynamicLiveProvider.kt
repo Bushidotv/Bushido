@@ -440,11 +440,55 @@ class DynamicLiveProvider : MainAPI() {
             return true
         }
 
+        // BeIN Sports 1: Huhu.to 1080p 50FPS Full HD yayın havuzu
+        var addedHuhu = false
+        if (data.contains("bein-sports-1")) {
+            val huhuIds = listOf(1352421053L, 662179620L, 593493860L, 300113394L, 3840475653L)
+            var count = 0
+            for ((index, cid) in huhuIds.withIndex()) {
+                try {
+                    val resolveUrl = "https://huhu.to/live/resolve?url=https://huhu.to/live/play/$cid"
+                    val respText = app.get(
+                        resolveUrl,
+                        headers = mapOf(
+                            "User-Agent" to USER_AGENT,
+                            "Referer" to "https://huhu.to/"
+                        ),
+                        timeout = 4
+                    ).text
+                    val streamUrl = Regex(""""url"\s*:\s*"([^"]+)"""").find(respText)?.groupValues?.get(1)?.replace("\\/", "/")
+                    if (!streamUrl.isNullOrBlank() && streamUrl.startsWith("http")) {
+                        val serverName = if (index == 0) "BeIN Sports 1 - 1080p 50FPS (Ana)" else "BeIN Sports 1 - 1080p (Yedek $index)"
+                        callback.invoke(
+                            newExtractorLink(
+                                source = this.name,
+                                name = serverName,
+                                url = streamUrl,
+                                type = ExtractorLinkType.M3U8
+                            ) {
+                                this.referer = "https://huhu.to/"
+                                this.headers = mapOf(
+                                    "User-Agent" to USER_AGENT,
+                                    "Referer" to "https://huhu.to/"
+                                )
+                                this.quality = Qualities.P1080.value
+                            }
+                        )
+                        count++
+                        addedHuhu = true
+                        if (count >= 2) break
+                    }
+                } catch (e: Throwable) {
+                    // Diğer ID'yi dene
+                }
+            }
+        }
+
         // 1. Fetch match page
         val mainHtml = try {
             app.get(data, headers = baseHeaders).text
         } catch (e: Exception) {
-            return false
+            return addedHuhu
         }
 
         val doc1 = Jsoup.parse(mainHtml)
