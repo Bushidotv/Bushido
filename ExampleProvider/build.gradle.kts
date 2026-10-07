@@ -4,11 +4,11 @@ dependencies {
 }
 
 // Sürüm numarasını tam sayı (Integer) olarak belirtiyoruz
-version = 31
+version = 32
 
 cloudstream {
-    // Eklentimizin uygulamanın uzantılar sayfasında görünecek bilgileri
-    description = "Canlı TV yayınları & Güncel MMA Maç tekrarları"
+    // Eklentimizin uygulamanin uzantilar sayfasinda gorunecek bilgileri
+    description = "Canli TV yayinlari & Guncel MMA Mac tekrarlari"
     authors = listOf("BushidoTV")
 
     /**
