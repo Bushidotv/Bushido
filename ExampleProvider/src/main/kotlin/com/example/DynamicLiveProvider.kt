@@ -482,6 +482,9 @@ class DynamicLiveProvider : MainAPI() {
                     // Diğer ID'yi dene
                 }
             }
+            if (addedHuhu) {
+                return true
+            }
         }
 
         // 1. Fetch match page
