@@ -1,58 +1,77 @@
-**⚠️ This is currently under development, dont use it yet if you're not comfortable with constantly merging new changes**
+<div align="center">
 
-# `Cloudstream3 Plugin Repo Template`
+# 🥊 Bushido CloudStream Eklentisi
 
-Template for a [Cloudstream3](https://github.com/recloudstream) plugin repo
+**CloudStream 3 için Canlı TV, Dövüş Sporları (MMA/UFC) ve Film & Dizi Sağlayıcısı**
 
-**⚠️ Make sure you check "Include all branches" when using this template**
+[![CloudStream](https://img.shields.io/badge/CloudStream-v3-blue.svg)](https://github.com/recloudstream/cloudstream)
+[![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20Android%20TV-green.svg)]()
+[![Language](https://img.shields.io/badge/Dil-T%C3%BCrk%C3%A7e-red.svg)]()
+[![Status](https://img.shields.io/badge/Durum-%C3%87al%C4%B1%C5%9F%C4%B1yor-brightgreen.svg)]()
 
- 
-## Getting started with writing your first plugin
+---
 
-This template includes 1 example plugin.
+</div>
 
-1. Open the root build.gradle.kts, read the comments and replace all the placeholders
-2. Familiarize yourself with the project structure. Most files are commented
-3. Build or deploy your first plugin using:
-   - Windows: `.\gradlew.bat ExampleProvider:make` or `.\gradlew.bat ExampleProvider:deployWithAdb`
-   - Linux & Mac: `./gradlew ExampleProvider:make` or `./gradlew ExampleProvider:deployWithAdb`
+## 📌 Özellikler
 
+Bu eklenti, CloudStream uygulamasına tek bir paket halinde 3 güçlü sağlayıcı ekler:
 
-## Granting All Files Access on Newer Android Devices
+### 1. 📺 Bushido TR (Canlı TV & Spor)
+* **Ulusal & Spor Kanalları:** TRT 1, ATV, TV8, Beyaz TV, TRT Spor, A Spor, Bein Sports, S Sport ve daha fazlası.
+* **Yüksek Kalite:** HD/FHD canlı yayın akışları.
+* **Hızlı Bağlantı:** Dinamik HLS (m3u8) ayrıştırıcı ile kesintisiz canlı yayın performansı.
 
-For local plugin testing, you need to grant the app "All Files Access" on newer Android devices (Android 11 and above). Here’s how to do it:
+### 2. 🥋 Bushido MMA (Dövüş Sporları Tekrarları)
+* **Kapsamlı Arşiv:** UFC, K-1, Kickboxing, PFL, KSW ve boks karşılaşmaları.
+* **Etkinlik Tekrarları:** Maçların tam tekrarları (Full Fight Replays).
+* **Arama & Filtreleme:** Dövüşçü ve organizasyon bazlı arama desteği.
 
-### Using ADB
+### 3. 🎬 Filmler (Film & Dizi Arşivi)
+* **Geniş Arşiv:** Yerli/yabancı en güncel filmler ve yabancı diziler.
+* **Kategoriler:** Aksiyon, Korku, Bilim Kurgu, Komedi, Macera, Gerilim, Fantastik.
+* **Akıllı Çözücü:** Gömülü JavaScript şifre çözme motoru ile yüksek hızlı video kaynakları.
+* **Altyazı Desteği:** Türkçe ve orijinal dil altyazı seçenekleri.
 
-* `adb shell appops set --uid PACKAGE_NAME MANAGE_EXTERNAL_STORAGE allow`
-* Replace `PACKAGE_NAME` with the name of the package for the Cloudstream3 version you are using:
-   - debug: `com.lagradost.cloudstream3.prerelease.debug`
-   - prerelease: `com.lagradost.cloudstream3.prerelease`
-   - stable: `com.lagradost.cloudstream3`
+---
 
-### Manually
+## 📲 Kurulum Rehberi
 
-1. **Open Settings**: Go to your device’s Settings menu.
+Eklentiyi CloudStream uygulamanıza eklemek son derece basittir:
 
-2. **Navigate to Special Access**:
-   - Tap on "Apps & notifications" or "Apps".
-   - Select "Special app access" or "Special access".
+1. **CloudStream 3** uygulamasını açın.
+2. Sağ alttaki **Ayarlar (Settings)** sekmesine gidin.
+3. **Uzantılar (Extensions)** veya **Depolar (Repositories)** seçeneğine tıklayın.
+4. **"Depo Ekle" (Add Repository)** butonuna basın.
+5. Açılan pencerede bilgileri girin:
+   * **Depo Adı:** `Bushido`
+   * **Depo URL'si:**
+     ```text
+     https://raw.githubusercontent.com/Bushidotv/Bushido/master/repo.json
+     ```
+6. **İndir / Ekle** butonuna tıklayın.
+7. Depo eklendikten sonra listeden **Bushido** eklentisini bulup **Yükle (Install)** butonuna basarak kurulumu tamamlayın.
 
-3. **Select All Files Access**:
-   - Tap on "All files access".
-   - It may be under the three vertical dots menu towards the top of the screen.
+---
 
-4. **Grant Access to the App**: Find the app in the list and tap on it to toggle it, if it is not already enabled.
+## ⚙️ Desteklenen Platformlar
 
-6. **Restart the App**: Close and reopen the app to apply the changes.
+* 📱 **Android Telefonlar ve Tabletler**
+* 📺 **Android TV & Google TV**
+* 🖥️ **Fire TV Stick**
 
+---
 
-## License
+## ⚠️ Yasal Uyarı (Disclaimer)
 
-Everything in this repo is released into the public domain. You may use it however you want with no conditions whatsoever
+Bu yazılım yalnızca eğitim ve araştırma amacıyla geliştirilmiştir. 
 
+* Bu eklenti sunucularında hiçbir video, medya veya yayın barındırmaz.
+* Yalnızca internette kamuya açık olarak yayın yapan üçüncü taraf sitelerdeki içerikleri CloudStream arayüzünde düzenli bir şekilde görüntülemeye yarayan bir kazıyıcıdır (scraper).
+* Yayınlanan içeriklerin telif hakları ilgili hak sahiplerine aittir.
 
-## Attribution
+---
 
-This template as well as the gradle plugin and the whole plugin system is **heavily** based on [Aliucord](https://github.com/Aliucord).
-*Go use it, it's a great mobile discord client mod!*
+<div align="center">
+<sub>BushidoTV topluluğu için hazırlanmıştır.</sub>
+</div>
