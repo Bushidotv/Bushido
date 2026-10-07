@@ -457,7 +457,8 @@ class DynamicLiveProvider : MainAPI() {
                         timeout = 4
                     ).text
                     val streamUrl = Regex(""""url"\s*:\s*"([^"]+)"""").find(respText)?.groupValues?.get(1)?.replace("\\/", "/")
-                    if (!streamUrl.isNullOrBlank() && streamUrl.startsWith("http")) {
+                    val isRawIp = streamUrl != null && Regex("""^https?://\d+\.\d+\.\d+\.\d+""").containsMatchIn(streamUrl)
+                    if (!streamUrl.isNullOrBlank() && streamUrl.startsWith("http") && !isRawIp) {
                         val serverName = if (index == 0) "BeIN Sports 1 - 1080p 50FPS (Ana)" else "BeIN Sports 1 - 1080p (Yedek $index)"
                         callback.invoke(
                             newExtractorLink(
