@@ -23,6 +23,7 @@ class ExamplePlugin: Plugin() {
         registerMainAPI(FilmMakinesi())
         registerExtractorAPI(CloseLoadExtractor())
         registerExtractorAPI(RapidExtractor())
+        registerExtractorAPI(DizipalPlayerExtractor())
 
         // Yeni Kaynaklar
         registerMainAPI(DiziMomProvider())
