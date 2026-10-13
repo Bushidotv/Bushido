@@ -20,21 +20,21 @@ class FilmMakinesi : MainAPI() {
     }
 
     override var mainUrl = "https://filmmakinesi.to"
-    override var name = "Filmler"
+    override var name = "FilmMakinesi"
     override val hasMainPage = true
     override var lang = "tr"
     override val hasQuickSearch = false
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries)
     override val mainPage = mainPageOf(
-        "${mainUrl}/filmler-1/" to "Son Filmler",
-        "${mainUrl}/yabanci-dizi-izle-1/" to "Son Diziler",
-        "${mainUrl}/tur/aksiyon-fmy54y/film/" to "Aksiyon",
-        "${mainUrl}/tur/korku-fm2/film/" to "Korku",
-        "${mainUrl}/tur/bilim-kurgu-fm3/film/" to "Bilim Kurgu",
-        "${mainUrl}/tur/komedi-fm1/film/" to "Komedi",
-        "${mainUrl}/tur/gerilim-fm1/film/" to "Gerilim",
-        "${mainUrl}/tur/macera-fm1/film/" to "Macera",
-        "${mainUrl}/tur/fantastik-fm1/film/" to "Fantastik"
+        "${mainUrl}/filmler-1/" to "[FilmMakinesi] Son Filmler",
+        "${mainUrl}/yabanci-dizi-izle-1/" to "[FilmMakinesi] Son Diziler",
+        "${mainUrl}/tur/aksiyon-fmy54y/film/" to "[FilmMakinesi] Aksiyon",
+        "${mainUrl}/tur/korku-fm2/film/" to "[FilmMakinesi] Korku",
+        "${mainUrl}/tur/bilim-kurgu-fm3/film/" to "[FilmMakinesi] Bilim Kurgu",
+        "${mainUrl}/tur/komedi-fm1/film/" to "[FilmMakinesi] Komedi",
+        "${mainUrl}/tur/gerilim-fm1/film/" to "[FilmMakinesi] Gerilim",
+        "${mainUrl}/tur/macera-fm1/film/" to "[FilmMakinesi] Macera",
+        "${mainUrl}/tur/fantastik-fm1/film/" to "[FilmMakinesi] Fantastik"
     )
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val url = if (page == 1) request.data else "${request.data.removeSuffix("/")}/sayfa/$page/"
