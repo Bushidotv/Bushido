@@ -25,6 +25,7 @@ class ExamplePlugin: Plugin() {
         registerExtractorAPI(RapidExtractor())
 
         // Yeni Kaynaklar
+        registerMainAPI(DiziMomProvider())
         registerMainAPI(DizipalProvider())
         registerMainAPI(HDFilmDelisi())
         registerMainAPI(DizillaProvider())
