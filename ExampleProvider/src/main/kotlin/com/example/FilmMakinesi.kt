@@ -9,7 +9,16 @@ import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 
 import org.jsoup.nodes.Element
 
-class FilmMakinesi : MainAPI() {
+    companion object {
+        private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        private val baseHeaders = mapOf(
+            "User-Agent" to USER_AGENT,
+            "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language" to "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Referer" to "https://filmmakinesi.to/"
+        )
+    }
+
     override var mainUrl = "https://filmmakinesi.to"
     override var name = "Filmler"
     override val hasMainPage = true
@@ -19,7 +28,7 @@ class FilmMakinesi : MainAPI() {
     override val mainPage = mainPageOf(
         "${mainUrl}/filmler-1/" to "Son Filmler",
         "${mainUrl}/yabanci-dizi-izle-1/" to "Son Diziler",
-        "${mainUrl}/tur/aksiyon-fm1/film/" to "Aksiyon",
+        "${mainUrl}/tur/aksiyon-fmy54y/film/" to "Aksiyon",
         "${mainUrl}/tur/korku-fm2/film/" to "Korku",
         "${mainUrl}/tur/bilim-kurgu-fm3/film/" to "Bilim Kurgu",
         "${mainUrl}/tur/komedi-fm1/film/" to "Komedi",
@@ -29,14 +38,14 @@ class FilmMakinesi : MainAPI() {
     )
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val url = if (page == 1) request.data else "${request.data.removeSuffix("/")}/sayfa/$page/"
-        val document = app.get(url).document
+        val document = app.get(url, headers = baseHeaders).document
         val items = document.select("a.item")
         val list = items.mapNotNull { it.toSearchResult() }
         val hasNext = document.select("ul.pagination li a[href]").isNotEmpty()
         return newHomePageResponse(request.name, list, hasNext = hasNext)
     }
     override suspend fun search(query: String): List<SearchResponse> {
-        val document = app.get("${mainUrl}/arama/?s=${query}").document
+        val document = app.get("${mainUrl}/arama/?s=${query}", headers = baseHeaders).document
         return document.select("a.item").mapNotNull { it.toSearchResult() }
     }
     private fun Element.toSearchResult(): SearchResponse? {
@@ -64,7 +73,7 @@ class FilmMakinesi : MainAPI() {
         }
     }
     override suspend fun load(url: String): LoadResponse? {
-        val document = app.get(url).document
+        val document = app.get(url, headers = baseHeaders).document
         val title = document.selectFirst("h1.title")?.ownText()?.trim()
             ?.removeSuffix(" izle")
             ?: return null
