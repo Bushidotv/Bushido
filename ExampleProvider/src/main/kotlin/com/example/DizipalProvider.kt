@@ -1,5 +1,6 @@
 package com.example
 
+import android.util.Log
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import org.jsoup.nodes.Element
@@ -74,7 +75,27 @@ class DizipalProvider : MainAPI() {
 
         val isSeries = url.contains("/dizi/")
         return if (isSeries) {
-            newTvSeriesLoadResponse(title, url, TvType.TvSeries, listOf()) {
+            val episodes = mutableListOf<Episode>()
+            val epLinks = document.select("a[href*='/bolum/']")
+            epLinks.forEach { ep ->
+                val epHref = fixUrlNull(ep.attr("href")) ?: return@forEach
+                val epText = ep.text().trim()
+                val seasonMatch = Regex("""(\d+)\.\s*Sezon""").find(epText)
+                val epMatch = Regex("""(\d+)\.\s*Bölüm""").find(epText)
+                val seasonNum = seasonMatch?.groupValues?.get(1)?.toIntOrNull()
+                    ?: Regex("""-(\d+)-sezon""").find(epHref)?.groupValues?.get(1)?.toIntOrNull() ?: 1
+                val epNum = epMatch?.groupValues?.get(1)?.toIntOrNull()
+                    ?: Regex("""-(\d+)-bolum""").find(epHref)?.groupValues?.get(1)?.toIntOrNull() ?: 1
+
+                episodes.add(newEpisode(epHref) {
+                    this.name = epText.ifBlank { "$seasonNum. Sezon $epNum. Bölüm" }
+                    this.season = seasonNum
+                    this.episode = epNum
+                    this.posterUrl = poster
+                })
+            }
+
+            newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes.distinctBy { it.data }) {
                 this.posterUrl = poster
             }
         } else {
@@ -90,37 +111,59 @@ class DizipalProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val document = app.get(data, headers = baseHeaders).document
+        val req = app.get(data, headers = baseHeaders)
+        val document = req.document
+
+        // 1. Iframes varsa çöz (iframe player)
+        val iframes = document.select("iframe").mapNotNull { it.attr("src") }
+        for (src in iframes) {
+            val fixed = fixUrl(src)
+            loadExtractor(fixed, data, subtitleCallback, callback)
+        }
+
+        // 2. data-cfg üzerinden ajax-player-config çağrısı (Cookie ve referer ile)
         val cfg = document.selectFirst("#videoContainer")?.attr("data-cfg")
         if (!cfg.isNullOrBlank()) {
-            val res = app.post(
-                "${mainUrl}/ajax-player-config",
-                data = mapOf("cfg" to cfg),
-                headers = baseHeaders + mapOf(
-                    "X-Requested-With" to "XMLHttpRequest",
-                    "Referer" to data
-                )
-            ).text
-            val videoUrl = Regex(""""v":\s*"([^"]+)"""").find(res)?.groupValues?.get(1)
-            if (!videoUrl.isNullOrBlank()) {
-                val cleanUrl = videoUrl.replace("\\/", "/")
-                if (cleanUrl.contains(".m3u8") || cleanUrl.contains(".mp4")) {
-                    callback.invoke(
-                        newExtractorLink(
-                            this.name,
-                            "Dizipal HLS",
-                            cleanUrl,
-                            type = if (cleanUrl.contains(".m3u8")) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
-                        ) {
-                            this.referer = mainUrl
-                        }
-                    )
-                    return true
-                } else {
-                    loadExtractor(cleanUrl, subtitleCallback, callback)
+            val cookies = req.cookies
+            val cookieHeader = cookies.entries.joinToString("; ") { "${it.key}=${it.value}" }
+            val postHeaders = baseHeaders + mapOf(
+                "X-Requested-With" to "XMLHttpRequest",
+                "Referer" to data,
+                "Origin" to mainUrl,
+                "Cookie" to cookieHeader
+            )
+
+            try {
+                val res = app.post(
+                    "${mainUrl}/ajax-player-config",
+                    data = mapOf("cfg" to cfg),
+                    headers = postHeaders
+                ).text
+
+                val videoUrl = Regex(""""v":\s*"([^"]+)"""").find(res)?.groupValues?.get(1)
+                if (!videoUrl.isNullOrBlank()) {
+                    val cleanUrl = videoUrl.replace("\\/", "/")
+                    if (cleanUrl.contains(".m3u8") || cleanUrl.contains(".mp4")) {
+                        callback.invoke(
+                            newExtractorLink(
+                                this.name,
+                                "Dizipal Full HD",
+                                cleanUrl,
+                                type = if (cleanUrl.contains(".m3u8")) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
+                            ) {
+                                this.referer = mainUrl
+                            }
+                        )
+                        return true
+                    } else {
+                        loadExtractor(cleanUrl, data, subtitleCallback, callback)
+                    }
                 }
+            } catch (e: Exception) {
+                Log.e("Dizipal", "ajax-player-config error: ${e.message}")
             }
         }
+
         return true
     }
 }
