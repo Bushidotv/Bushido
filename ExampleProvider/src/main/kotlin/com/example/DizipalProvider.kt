@@ -149,6 +149,10 @@ class DizipalProvider : MainAPI() {
                         val host = Regex("""https?://[^/]+""").find(iframe)?.value ?: "https://x.ag2m5.cfd"
                         val streamUrl = host + endpointMatch.groupValues[1]
 
+                        val cookieMatches = Regex("""\$\.cookie\('([^']+)',\s*'([^']+)'""").findAll(embedHtml)
+                        val dynamicCookies = cookieMatches.map { "${it.groupValues[1]}=${it.groupValues[2]}" }.joinToString("; ")
+                        val cookieHeader = if (dynamicCookies.isNotBlank()) dynamicCookies else "aff=1; ref_url=dizipal3008.com"
+
                         val streamRes = app.get(
                             streamUrl,
                             headers = mapOf(
@@ -156,7 +160,7 @@ class DizipalProvider : MainAPI() {
                                 "Referer" to iframe,
                                 "Origin" to host,
                                 "X-Requested-With" to "XMLHttpRequest",
-                                "Cookie" to "file_id=95586; aff=1; ref_url=dizipal3008.com"
+                                "Cookie" to cookieHeader
                             )
                         ).text
 
@@ -171,7 +175,7 @@ class DizipalProvider : MainAPI() {
                                     m3u8Url,
                                     type = ExtractorLinkType.M3U8
                                 ) {
-                                    this.referer = host
+                                    this.referer = "${host}/"
                                 }
                             )
                             foundStream = true
