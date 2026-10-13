@@ -24,6 +24,11 @@ class ExamplePlugin: Plugin() {
         registerExtractorAPI(CloseLoadExtractor())
         registerExtractorAPI(RapidExtractor())
 
+        // Yeni Kaynaklar
+        registerMainAPI(DizipalProvider())
+        registerMainAPI(HDFilmDelisi())
+        registerMainAPI(DizillaProvider())
+
         // Şablonun beraberinde getirdiği BlankFragment ayarlar menüsünü koruyoruz
         openSettings = {
             val frag = BlankFragment(this)
