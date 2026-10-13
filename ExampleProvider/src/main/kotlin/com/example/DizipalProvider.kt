@@ -4,6 +4,7 @@ import android.util.Log
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import org.jsoup.nodes.Element
+import org.json.JSONObject
 
 class DizipalProvider : MainAPI() {
     companion object {
@@ -12,11 +13,11 @@ class DizipalProvider : MainAPI() {
             "User-Agent" to USER_AGENT,
             "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
             "Accept-Language" to "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
-            "Referer" to "https://dizipal2138.com/"
+            "Referer" to "https://dizipal3008.com/"
         )
     }
 
-    override var mainUrl = "https://dizipal2138.com"
+    override var mainUrl = "https://dizipal3008.com"
     override var name = "Dizipal"
     override val hasMainPage = true
     override var lang = "tr"
@@ -24,26 +25,29 @@ class DizipalProvider : MainAPI() {
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries)
 
     override val mainPage = mainPageOf(
-        "${mainUrl}/" to "[Dizipal] Trendler",
-        "${mainUrl}/kategori/aksiyon" to "[Dizipal] Aksiyon",
-        "${mainUrl}/kategori/komedi" to "[Dizipal] Komedi",
-        "${mainUrl}/kategori/korku" to "[Dizipal] Korku",
-        "${mainUrl}/kategori/bilim-kurgu" to "[Dizipal] Bilim Kurgu",
-        "${mainUrl}/kategori/macera" to "[Dizipal] Macera"
+        "${mainUrl}/" to "[Dizipal] Son Eklenenler",
+        "${mainUrl}/kategori/aksiyon/" to "[Dizipal] Aksiyon",
+        "${mainUrl}/kategori/komedi/" to "[Dizipal] Komedi",
+        "${mainUrl}/kategori/korku/" to "[Dizipal] Korku",
+        "${mainUrl}/kategori/bilim-kurgu/" to "[Dizipal] Bilim Kurgu",
+        "${mainUrl}/kategori/dram/" to "[Dizipal] Dram",
+        "${mainUrl}/kategori/gerilim/" to "[Dizipal] Gerilim",
+        "${mainUrl}/kategori/yerli/" to "[Dizipal] Yerli"
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val document = app.get(request.data, headers = baseHeaders).document
-        val items = document.select("a[href*='/film/'], a[href*='/dizi/']")
+        val url = if (page == 1) request.data else "${request.data.removeSuffix("/")}/page/$page/"
+        val document = app.get(url, headers = baseHeaders).document
+        val items = document.select("div.post-item, div.grid div.post-item")
         val list = items.mapNotNull { it.toSearchResult() }.distinctBy { it.url }
-        return newHomePageResponse(request.name, list, hasNext = false)
+        return newHomePageResponse(request.name, list, hasNext = true)
     }
 
     private fun Element.toSearchResult(): SearchResponse? {
-        val href = fixUrlNull(this.attr("href")) ?: return null
-        if (!href.contains("/film/") && !href.contains("/dizi/")) return null
+        val a = this.selectFirst("a") ?: return null
+        val href = fixUrlNull(a.attr("href")) ?: return null
         val img = this.selectFirst("img")
-        val title = img?.attr("alt")?.trim() ?: this.text().trim()
+        val title = a.attr("title").ifBlank { img?.attr("alt")?.trim() ?: a.text().trim() }
         if (title.isBlank()) return null
         val poster = fixUrlNull(img?.attr("data-src") ?: img?.attr("src"))
         val isSeries = href.contains("/dizi/")
@@ -60,18 +64,17 @@ class DizipalProvider : MainAPI() {
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
-        val document = app.get("${mainUrl}/ajax-search?q=${query}", headers = baseHeaders).document
-        return document.select("a[href*='/film/'], a[href*='/dizi/']").mapNotNull { it.toSearchResult() }.distinctBy { it.url }
+        val document = app.get("${mainUrl}/?s=${query}", headers = baseHeaders).document
+        return document.select("div.post-item").mapNotNull { it.toSearchResult() }.distinctBy { it.url }
     }
 
     override suspend fun load(url: String): LoadResponse? {
         val document = app.get(url, headers = baseHeaders).document
         val title = document.selectFirst("h1")?.text()?.replace(Regex("(?i)\\s*izle.*"), "")?.trim()
             ?: document.title().replace(Regex("(?i)\\s*izle.*"), "").trim()
-        val poster = fixUrlNull(document.selectFirst(".trending-poster img, .player-cover-overlay")?.attr("data-src")
-            ?: document.selectFirst(".player-cover-overlay")?.attr("style")?.let {
-                Regex("""url\(['"]?(.*?)['"]?\)""").find(it)?.groupValues?.get(1)
-            })
+        val img = document.selectFirst("div.poster img, img.wp-post-image")
+        val poster = fixUrlNull(img?.attr("data-src") ?: img?.attr("src"))
+        val description = document.selectFirst("div.story, div.summary, div.content p")?.text()?.trim()
 
         val isSeries = url.contains("/dizi/")
         return if (isSeries) {
@@ -97,10 +100,12 @@ class DizipalProvider : MainAPI() {
 
             newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes.distinctBy { it.data }) {
                 this.posterUrl = poster
+                this.plot = description
             }
         } else {
             newMovieLoadResponse(title, url, TvType.Movie, url) {
                 this.posterUrl = poster
+                this.plot = description
             }
         }
     }
@@ -111,59 +116,76 @@ class DizipalProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val req = app.get(data, headers = baseHeaders)
-        val document = req.document
+        Log.d("DZP", "loading links from >> $data")
+        val document = app.get(data, headers = baseHeaders).document
+        val iframes = mutableSetOf<String>()
 
-        // 1. Iframes varsa çöz (iframe player)
-        val iframes = document.select("iframe").mapNotNull { it.attr("src") }
-        for (src in iframes) {
-            val fixed = fixUrl(src)
-            loadExtractor(fixed, data, subtitleCallback, callback)
-        }
-
-        // 2. data-cfg üzerinden ajax-player-config çağrısı (Cookie ve referer ile)
-        val cfg = document.selectFirst("#videoContainer")?.attr("data-cfg")
-        if (!cfg.isNullOrBlank()) {
-            val cookies = req.cookies
-            val cookieHeader = cookies.entries.joinToString("; ") { "${it.key}=${it.value}" }
-            val postHeaders = baseHeaders + mapOf(
-                "X-Requested-With" to "XMLHttpRequest",
-                "Referer" to data,
-                "Origin" to mainUrl,
-                "Cookie" to cookieHeader
-            )
-
-            try {
-                val res = app.post(
-                    "${mainUrl}/ajax-player-config",
-                    data = mapOf("cfg" to cfg),
-                    headers = postHeaders
-                ).text
-
-                val videoUrl = Regex(""""v":\s*"([^"]+)"""").find(res)?.groupValues?.get(1)
-                if (!videoUrl.isNullOrBlank()) {
-                    val cleanUrl = videoUrl.replace("\\/", "/")
-                    if (cleanUrl.contains(".m3u8") || cleanUrl.contains(".mp4")) {
-                        callback.invoke(
-                            newExtractorLink(
-                                this.name,
-                                "Dizipal Full HD",
-                                cleanUrl,
-                                type = if (cleanUrl.contains(".m3u8")) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
-                            ) {
-                                this.referer = mainUrl
-                            }
-                        )
-                        return true
-                    } else {
-                        loadExtractor(cleanUrl, data, subtitleCallback, callback)
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e("Dizipal", "ajax-player-config error: ${e.message}")
+        document.select("iframe").forEach { ifr ->
+            val src = ifr.attr("src").ifBlank { ifr.attr("data-src") }
+            if (src.isNotBlank() && !src.startsWith("about:")) {
+                iframes.add(fixUrl(src))
             }
         }
 
-        return true
+        var foundStream = false
+
+        for (iframe in iframes) {
+            Log.d("DZP", "processing iframe >> $iframe")
+
+            // ag2m5.cfd veya türevi özel embed oynatıcı çözücüsü
+            if (iframe.contains("ag2m5.") || iframe.contains("/embed-")) {
+                try {
+                    val embedReq = app.get(
+                        iframe,
+                        headers = mapOf(
+                            "User-Agent" to USER_AGENT,
+                            "Referer" to data
+                        )
+                    )
+                    val embedHtml = embedReq.text
+                    val endpointMatch = Regex("""fetch\('(/dl\?op=get_stream[^']+)'\)""").find(embedHtml)
+
+                    if (endpointMatch != null) {
+                        val host = Regex("""https?://[^/]+""").find(iframe)?.value ?: "https://x.ag2m5.cfd"
+                        val streamUrl = host + endpointMatch.groupValues[1]
+
+                        val streamRes = app.get(
+                            streamUrl,
+                            headers = mapOf(
+                                "User-Agent" to USER_AGENT,
+                                "Referer" to iframe,
+                                "Origin" to host,
+                                "X-Requested-With" to "XMLHttpRequest",
+                                "Cookie" to "file_id=95586; aff=1; ref_url=dizipal3008.com"
+                            )
+                        ).text
+
+                        val json = JSONObject(streamRes)
+                        val m3u8Url = json.optString("url")
+
+                        if (m3u8Url.isNotBlank()) {
+                            callback.invoke(
+                                newExtractorLink(
+                                    this.name,
+                                    "Dizipal Full HD (HLS)",
+                                    m3u8Url,
+                                    type = ExtractorLinkType.M3U8
+                                ) {
+                                    this.referer = host
+                                }
+                            )
+                            foundStream = true
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("DZP", "ag2m5 error: ${e.message}")
+                }
+            } else {
+                loadExtractor(iframe, mainUrl, subtitleCallback, callback)
+                foundStream = true
+            }
+        }
+
+        return foundStream
     }
 }
