@@ -5,6 +5,7 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import org.jsoup.nodes.Element
+import org.json.JSONObject
 
 class DiziMomProvider : MainAPI() {
     companion object {
@@ -50,7 +51,8 @@ class DiziMomProvider : MainAPI() {
         val epDoc = app.get(epHref, headers = baseHeaders).document
         val href = fixUrlNull(epDoc.selectFirst("div#benzerli a")?.attr("href")) ?: epHref
 
-        val posterUrl = fixUrlNull(this.selectFirst("a img")?.attr("src"))
+        val posterUrl = fixUrlNull(this.selectFirst("img")?.attr("data-src")
+            ?: this.selectFirst("img")?.attr("src"))
 
         return newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
             this.posterUrl = posterUrl
@@ -60,7 +62,8 @@ class DiziMomProvider : MainAPI() {
     private fun Element.diziler(): SearchResponse? {
         val title = this.selectFirst("div.categorytitle a")?.text()?.substringBefore(" izle")?.trim() ?: return null
         val href = fixUrlNull(this.selectFirst("div.categorytitle a")?.attr("href")) ?: return null
-        val posterUrl = fixUrlNull(this.selectFirst("div.cat-img img")?.attr("src"))
+        val img = this.selectFirst("div.cat-img img")
+        val posterUrl = fixUrlNull(img?.attr("data-src") ?: img?.attr("src"))
 
         return newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
             this.posterUrl = posterUrl
@@ -76,7 +79,8 @@ class DiziMomProvider : MainAPI() {
         val document = app.get(url, headers = baseHeaders).document
 
         val title = document.selectFirst("div.title h1")?.text()?.substringBefore(" izle")?.trim() ?: return null
-        val poster = fixUrlNull(document.selectFirst("div.category_image img")?.attr("src"))
+        val img = document.selectFirst("div.category_image img")
+        val poster = fixUrlNull(img?.attr("data-src") ?: img?.attr("src"))
         val year = document.selectXpath("//div[span[contains(text(), 'Yapım Yılı')]]").text().substringAfter("Yapım Yılı : ").trim().toIntOrNull()
         val description = document.selectFirst("div.category_desc")?.text()?.trim()
         val tags = document.select("div.genres a").mapNotNull { it.text().trim() }
@@ -95,6 +99,7 @@ class DiziMomProvider : MainAPI() {
                 this.name = epName.substringBefore(" izle").replace(title, "").trim()
                 this.season = epSeason
                 this.episode = epEpisode
+                this.posterUrl = poster
             }
         }
 
@@ -114,47 +119,80 @@ class DiziMomProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        Log.d("DZM", "data >> $data")
-
-        try {
-            app.post(
-                "${mainUrl}/wp-login.php",
-                headers = baseHeaders,
-                referer = "${mainUrl}/",
-                data = mapOf(
-                    "log" to "keyiflerolsun",
-                    "pwd" to "12345",
-                    "rememberme" to "forever",
-                    "redirect_to" to mainUrl
-                )
-            )
-        } catch (_: Exception) {}
-
+        Log.d("DZM", "loading links from >> $data")
         val document = app.get(data, headers = baseHeaders).document
-        val iframes = mutableListOf<String>()
 
-        val mainIframe = document.selectFirst("div.video p iframe")?.attr("src")
-        if (!mainIframe.isNullOrBlank()) {
-            iframes.add(mainIframe)
+        // Collect all iframes (both data-src and src)
+        val iframes = mutableSetOf<String>()
+        document.select("iframe").forEach { ifr ->
+            val src = ifr.attr("data-src").ifBlank { ifr.attr("src") }
+            if (src.isNotBlank() && !src.startsWith("about:")) {
+                iframes.add(fixUrl(src))
+            }
         }
 
         document.select("div.sources a").forEach {
             val subHref = fixUrlNull(it.attr("href")) ?: return@forEach
             try {
                 val subDoc = app.get(subHref, headers = baseHeaders).document
-                val subIframe = subDoc.selectFirst("div.video p iframe")?.attr("src")
-                if (!subIframe.isNullOrBlank() && subIframe !in iframes) {
-                    iframes.add(subIframe)
+                subDoc.select("iframe").forEach { ifr ->
+                    val src = ifr.attr("data-src").ifBlank { ifr.attr("src") }
+                    if (src.isNotBlank() && !src.startsWith("about:")) {
+                        iframes.add(fixUrl(src))
+                    }
                 }
             } catch (_: Exception) {}
         }
 
+        var foundStream = false
+
         for (iframe in iframes) {
-            val cleanIframe = fixUrl(iframe)
-            Log.d("DZM", "iframe >> $cleanIframe")
-            loadExtractor(cleanIframe, "${mainUrl}/", subtitleCallback, callback)
+            Log.d("DZM", "processing iframe >> $iframe")
+
+            // Özel Çözücü: hdplayersystem.com / hdplayersystem.live
+            if (iframe.contains("hdplayersystem.")) {
+                val videoId = Regex("""/video/([a-zA-Z0-9]+)""").find(iframe)?.groupValues?.get(1)
+                if (!videoId.isNullOrBlank()) {
+                    try {
+                        val apiUrl = "https://hdplayersystem.com/player/index.php?data=${videoId}&do=getVideo"
+                        val apiRes = app.post(
+                            apiUrl,
+                            data = mapOf("hash" to videoId, "r" to mainUrl),
+                            headers = mapOf(
+                                "User-Agent" to USER_AGENT,
+                                "Referer" to iframe,
+                                "Origin" to "https://hdplayersystem.com",
+                                "X-Requested-With" to "XMLHttpRequest"
+                            )
+                        ).text
+
+                        val json = JSONObject(apiRes)
+                        val m3u8 = json.optString("securedLink").ifBlank { json.optString("videoSource") }
+
+                        if (m3u8.isNotBlank()) {
+                            callback.invoke(
+                                newExtractorLink(
+                                    this.name,
+                                    "DiziMom Full HD (HLS)",
+                                    fixUrl(m3u8),
+                                    type = ExtractorLinkType.M3U8
+                                ) {
+                                    this.referer = "https://hdplayersystem.com/"
+                                }
+                            )
+                            foundStream = true
+                        }
+                    } catch (e: Exception) {
+                        Log.e("DZM", "hdplayersystem error: ${e.message}")
+                    }
+                }
+            } else {
+                // Diğer standart iframe'leri genel CloudStream extractor'larına ilet
+                loadExtractor(iframe, mainUrl, subtitleCallback, callback)
+                foundStream = true
+            }
         }
 
-        return true
+        return foundStream
     }
 }
