@@ -25,21 +25,21 @@ Write-Host "BelgeselX Hash: $fileHash"
 
 # Update plugins.json
 $pluginsJsonPath = Join-Path $tmpDir "plugins.json"
-$plugins = @()
+$list = @()
 if (Test-Path $pluginsJsonPath) {
     $raw = Get-Content -Raw -Path $pluginsJsonPath -Encoding UTF8
-    $plugins = [System.Collections.ArrayList]@(ConvertFrom-Json $raw)
-}
-
-# Remove existing BelgeselX if present
-$toRemove = @()
-foreach ($p in $plugins) {
-    if ($p.internalName -eq "BelgeselX" -or $p.name -eq "BelgeselX") {
-        $toRemove += $p
+    $parsed = ConvertFrom-Json $raw
+    foreach ($item in $parsed) {
+        if ($item.PSObject.Properties['value']) {
+            foreach ($sub in $item.value) {
+                if ($sub.internalName -ne "BelgeselX" -and $sub.name -ne "BelgeselX") {
+                    $list += $sub
+                }
+            }
+        } elseif ($item.internalName -ne "BelgeselX" -and $item.name -ne "BelgeselX") {
+            $list += $item
+        }
     }
-}
-foreach ($r in $toRemove) {
-    $plugins.Remove($r)
 }
 
 $newEntry = [ordered]@{
@@ -54,15 +54,16 @@ $newEntry = [ordered]@{
     "tvTypes" = @("Documentary", "Movie", "TvSeries")
     "version" = 9
     "internalName" = "BelgeselX"
-    "description" = "BelgeselX - Belgesel, Dizi ve Film İçerikleri"
+    "description" = "BelgeselX - Belgesel, Dizi ve Film Icerikleri"
     "url" = "https://raw.githubusercontent.com/Bushidotv/Bushido/builds/BelgeselX.cs3"
     "name" = "BelgeselX"
 }
 
-$plugins.Add($newEntry)
+$list += [PSCustomObject]$newEntry
 
-$updatedPluginsJson = ConvertTo-Json @($plugins) -Depth 10
-[System.IO.File]::WriteAllText($pluginsJsonPath, $updatedPluginsJson, [System.Text.Encoding]::UTF8)
+$updatedPluginsJson = ConvertTo-Json -InputObject $list -Depth 10
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+[System.IO.File]::WriteAllText($pluginsJsonPath, $updatedPluginsJson, $utf8NoBom)
 Write-Host "Updated plugins.json successfully."
 
 # Update repo.json
@@ -75,8 +76,8 @@ $repoData = [ordered]@{
         "https://raw.githubusercontent.com/Bushidotv/Bushido/builds/plugins.json"
     )
 }
-$updatedRepoJson = ConvertTo-Json $repoData -Depth 5
-[System.IO.File]::WriteAllText($repoJsonPath, $updatedRepoJson, [System.Text.Encoding]::UTF8)
+$updatedRepoJson = ConvertTo-Json -InputObject $repoData -Depth 5
+[System.IO.File]::WriteAllText($repoJsonPath, $updatedRepoJson, $utf8NoBom)
 Write-Host "Updated repo.json successfully."
 
 # Commit and push
@@ -85,7 +86,7 @@ try {
     git config user.name "BushidoTV"
     git config user.email "bushidotv@gmail.com"
     git add .
-    git commit -m "feat: BelgeselX eklendi (tvTypes: Documentary, Movie, TvSeries)"
+    git commit -m "fix: clean flat plugins.json with BelgeselX (Documentary, Movie, TvSeries)"
     Write-Host "Pushing to origin builds..."
     git push origin builds
     Write-Host "Pushed successfully!"
