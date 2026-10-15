@@ -26,6 +26,7 @@ class ExamplePlugin: Plugin() {
         registerExtractorAPI(DizipalPlayerExtractor())
 
         // Yeni Kaynaklar
+        registerMainAPI(InatTVProvider())
         registerMainAPI(HDFilmCehennemi())
         registerMainAPI(DiziMomProvider())
         registerMainAPI(DizipalProvider())
