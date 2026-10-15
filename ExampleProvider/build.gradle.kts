@@ -4,11 +4,11 @@ dependencies {
 }
 
 // Sürüm numarasını tam sayı (Integer) olarak belirtiyoruz
-version = 47
+version = 48
 
 cloudstream {
     // Eklentimizin uygulamanin uzantilar sayfasinda gorunecek bilgileri
-    description = "Canli TV yayinlari & Guncel MMA Mac tekrarlari"
+    description = "Canli TV, Film, Dizi, Belgesel & MMA Mac tekrarlari"
     authors = listOf("BushidoTV")
 
     /**
@@ -20,7 +20,7 @@ cloudstream {
     **/
     status = 1 // Uzantının durumunu aktif (Ok) olarak işaretliyoruz
 
-    tvTypes = listOf("Live", "Movie", "TvSeries")
+    tvTypes = listOf("Live", "Movie", "TvSeries", "Documentary")
 
     requiresResources = true
     language = "tr"
