@@ -1,0 +1,189 @@
+[
+    {
+        "iconUrl": "https://raw.githubusercontent.com/Bushidotv/Bushido/master/icon.png",
+        "fileHash": "sha256-ac9e027fe24185abd4cb0bd06f216850eb2e69ea794b7805d85f31a25fecb3bd",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/Bushidotv/Bushido",
+        "fileSize": 27578,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "Bushido"
+        ],
+        "tvTypes": [
+            "Live"
+        ],
+        "version": 61,
+        "internalName": "Bushido",
+        "description": "Canlı spor ve TV yayınları",
+        "url": "https://raw.githubusercontent.com/Bushidotv/Bushido/builds/Bushido.cs3",
+        "name": "Bushido Spor"
+    },
+    {
+        "iconUrl": "https://fullfightreplays.com/favicon.ico",
+        "fileHash": "sha256-0899d4013593135d498049f7a8d06aaf9ce286eb3cd68a29b844fbbdd0760358",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/Bushidotv/Bushido",
+        "fileSize": 12027,
+        "status": 1,
+        "language": "en",
+        "authors": [
+            "Bushido"
+        ],
+        "tvTypes": [
+            "Others"
+        ],
+        "version": 1,
+        "internalName": "FullFightReplays",
+        "description": "Watch UFC, MMA, Boxing, Kickboxing, K-1 Full Fight Replays",
+        "url": "https://raw.githubusercontent.com/Bushidotv/Bushido/builds/FullFightReplays.cs3",
+        "name": "FullFightReplays"
+    },
+    {
+        "iconUrl": "https://raw.githubusercontent.com/Bushidotv/Bushido/master/icon.png",
+        "fileHash": "sha256-f07e08546413064338d337e1860dfbde1b6a1ac35d714f6d0fe758dbc0ea014c",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/Bushidotv/Bushido",
+        "fileSize": 45643,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "Bushido"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 2,
+        "internalName": "HDFilmCehennemi",
+        "description": "HDFilmCehennemi filmleri ve dizileri",
+        "url": "https://raw.githubusercontent.com/Bushidotv/Bushido/builds/HDFilmCehennemi.cs3",
+        "name": "HDFilmCehennemi"
+    },
+    {
+        "iconUrl": "https://favicons.teamtailor-cdn.com/icon?size=80..120..200&url=tv.garden",
+        "fileHash": "sha256-fed1452660a47c07c275b75265abc353f1b888294877f11ce9e4c261e0042077",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/Bushidotv/Bushido",
+        "fileSize": 13566,
+        "status": 1,
+        "language": "en",
+        "authors": [
+            "Bushido"
+        ],
+        "tvTypes": [
+            "Live"
+        ],
+        "version": 11,
+        "internalName": "TVGarden",
+        "description": "With TVGarden, you can watch the local and legal channels you are looking for from both domestic and international sources.",
+        "url": "https://raw.githubusercontent.com/Bushidotv/Bushido/builds/TVGarden.cs3",
+        "name": "TVGarden"
+    },
+    {
+        "name": "BelgeselX",
+        "internalName": "BelgeselX",
+        "version": 9,
+        "url": "https://raw.githubusercontent.com/Bushidotv/Bushido/builds/BelgeselX.cs3",
+        "fileSize": 139173,
+        "fileHash": "sha256-00996f7478e8b42b9e9f6fe97e107a88b9a607c6a855e6b226893fe291d1376d",
+        "authors": [
+            "Bushido"
+        ],
+        "repositoryUrl": "https://github.com/Bushidotv/Bushido",
+        "iconUrl": "https://www.google.com/s2/favicons?domain=belgeselx.com&sz=128",
+        "description": "BelgeselX - belgesel izleme kaynağı",
+        "language": "tr",
+        "tvTypes": [
+            "Documentary",
+            "TvSeries",
+            "Movie"
+        ],
+        "status": 1,
+        "apiVersion": 1
+    },
+    {
+        "name": "DiziMom",
+        "internalName": "DiziMom",
+        "version": 10,
+        "url": "https://raw.githubusercontent.com/Bushidotv/Bushido/builds/DiziMom.cs3",
+        "fileSize": 133178,
+        "fileHash": "sha256-9db0c2057c9b41be745b6a5aa38d087ba7e32031b6a45627febc1a33b4c1155e",
+        "authors": [
+            "Bushido"
+        ],
+        "repositoryUrl": "https://github.com/Bushidotv/Bushido",
+        "iconUrl": "https://raw.githubusercontent.com/Wiojelt/TurkSinema/main/assets/providers/DiziMom.png",
+        "description": "DiziMom dizileri",
+        "language": "tr",
+        "tvTypes": [
+            "TvSeries"
+        ],
+        "status": 1,
+        "apiVersion": 1
+    },
+    {
+        "name": "RecTV",
+        "internalName": "RecTV",
+        "version": 2,
+        "url": "https://raw.githubusercontent.com/Bushidotv/Bushido/builds/RecTV.cs3",
+        "fileSize": 142785,
+        "fileHash": "sha256-e13eb4ff1ea1b80e9da9309c9dfba77abd4928e51a2e883a9edd2afb23ffc27a",
+        "authors": [
+            "Bushido"
+        ],
+        "repositoryUrl": "https://github.com/Bushidotv/Bushido",
+        "iconUrl": "https://raw.githubusercontent.com/Wiojelt/TurkSinema/builds/assets/rectv.png",
+        "description": "RecTV filmler, diziler ve canlı yayınlar",
+        "language": "tr",
+        "tvTypes": [
+            "Movie",
+            "TvSeries",
+            "Live"
+        ],
+        "status": 1,
+        "apiVersion": 1
+    },
+    {
+        "name": "DiziPalHub",
+        "internalName": "DiziPalHub",
+        "version": 22,
+        "url": "https://raw.githubusercontent.com/Bushidotv/Bushido/builds/DiziPalHub.cs3",
+        "fileSize": 223008,
+        "fileHash": "sha256-ef776b0b5aa617606b7bbaf70b82c59a4801d821ed49d8cf18d5d071935eb9a9",
+        "authors": [
+            "Bushido"
+        ],
+        "repositoryUrl": "https://github.com/Bushidotv/Bushido",
+        "iconUrl": "https://raw.githubusercontent.com/Bushidotv/Bushido/master/icon.png",
+        "description": "DiziPalHub dizi ve filmleri",
+        "language": "tr",
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "status": 1,
+        "apiVersion": 1
+    },
+    {
+        "name": "FullHDFilmizlesene",
+        "internalName": "FullHDFilmizlesene",
+        "version": 10,
+        "url": "https://raw.githubusercontent.com/Bushidotv/Bushido/builds/FullHDFilmizlesene.cs3",
+        "fileSize": 137274,
+        "fileHash": "sha256-554a50415dd1356d3f4ab65ca252243a481032f53fb6e5814deff2d95fa528b9",
+        "authors": [
+            "Bushido"
+        ],
+        "repositoryUrl": "https://github.com/Bushidotv/Bushido",
+        "iconUrl": "https://raw.githubusercontent.com/Bushidotv/Bushido/master/icon.png",
+        "description": "FullHDFilmizlesene filmler ve diziler",
+        "language": "tr",
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "status": 1,
+        "apiVersion": 1
+    }
+]
