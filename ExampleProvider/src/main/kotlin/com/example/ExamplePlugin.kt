@@ -31,7 +31,6 @@ class ExamplePlugin: Plugin() {
         registerMainAPI(DizipalProvider())
         registerMainAPI(HDFilmDelisi())
         registerMainAPI(DizillaProvider())
-        registerMainAPI(BelgeselX())
 
         // Şablonun beraberinde getirdiği BlankFragment ayarlar menüsünü koruyoruz
         openSettings = {
