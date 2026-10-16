@@ -24,7 +24,7 @@ Bu depo, her biri **ayrı kurulan** CloudStream eklentilerinden oluşur:
 | **FilmMakinesi** | 🎬 Film ve dizi arşivi (hazır `.cs3` olarak yayınlanır) |
 | **HDFilmCehennemi** | 🎬 Film ve dizi arşivi |
 | **HDFilmDelisi** | 🎬 Filmler |
-| **Dizipal** | 📺 Diziler ve filmler |
+| **DiziPalHub** | 📺 Diziler ve filmler (hazır `.cs3` olarak yayınlanır) |
 | **Dizilla** | 📺 Diziler |
 | **DiziMom** | 📺 Diziler (hazır `.cs3` olarak yayınlanır) |
 | **BelgeselX** | 🌍 Belgeseller (hazır `.cs3` olarak yayınlanır) |
