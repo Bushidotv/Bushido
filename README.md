@@ -21,7 +21,7 @@ Bu depo, her biri **ayrı kurulan** CloudStream eklentilerinden oluşur:
 |---|---|
 | **Bushido** | 📺 Canlı TV (ulusal ve spor kanalları) |
 | **BushidoMMA** | 🥋 MMA/UFC/boks/K-1 maç tekrarları |
-| **FilmMakinesi** | 🎬 Film ve dizi arşivi |
+| **FilmMakinesi** | 🎬 Film ve dizi arşivi (hazır `.cs3` olarak yayınlanır) |
 | **HDFilmCehennemi** | 🎬 Film ve dizi arşivi |
 | **HDFilmDelisi** | 🎬 Filmler |
 | **Dizipal** | 📺 Diziler ve filmler |
