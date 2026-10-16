@@ -23,7 +23,7 @@ Bu depo, her biri **ayrı kurulan** CloudStream eklentilerinden oluşur:
 | **BushidoMMA** | 🥋 MMA/UFC/boks/K-1 maç tekrarları |
 | **FilmMakinesi** | 🎬 Film ve dizi arşivi (hazır `.cs3` olarak yayınlanır) |
 | **HDFilmCehennemi** | 🎬 Film ve dizi arşivi |
-| **HDFilmDelisi** | 🎬 Filmler |
+| **HDFilmDelisi** | 🎬 Filmler ve diziler (hazır `.cs3` olarak yayınlanır) |
 | **DiziPalHub** | 📺 Diziler ve filmler (hazır `.cs3` olarak yayınlanır) |
 | **Dizilla** | 📺 Diziler |
 | **DiziMom** | 📺 Diziler (hazır `.cs3` olarak yayınlanır) |

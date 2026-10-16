@@ -1,0 +1,8 @@
+{
+    "description": "HDFilmDelisi filmleri ve dizileri",
+    "authors": ["Wiojelt"],
+    "tvTypes": ["Movie", "TvSeries"],
+    "language": "tr",
+    "iconUrl": "https://raw.githubusercontent.com/Bushidotv/Bushido/master/icon.png",
+    "status": 1
+}
