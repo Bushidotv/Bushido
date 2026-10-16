@@ -4,7 +4,7 @@ dependencies {
 }
 
 // Sürüm numarasını tam sayı (Integer) olarak belirtiyoruz
-version = 53
+version = 54
 
 cloudstream {
     // Eklentimizin uygulamanin uzantilar sayfasinda gorunecek bilgileri
@@ -20,7 +20,7 @@ cloudstream {
     **/
     status = 1 // Uzantının durumunu aktif (Ok) olarak işaretliyoruz
 
-    tvTypes = listOf("Live", "Movie", "TvSeries")
+    tvTypes = listOf("Live", "Movie")
 
     requiresResources = true
     language = "tr"

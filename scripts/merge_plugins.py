@@ -11,7 +11,24 @@ def get_sha256(filepath):
             h.update(chunk)
     return h.hexdigest()
 
-def merge_plugins(builds_dir):
+ALLOWED_OVERRIDES = ("name", "description", "tvTypes", "language", "authors", "iconUrl", "status")
+
+def load_overrides(prebuilt_dir, base_name):
+    """prebuilt/<Ad>.json varsa, plugins.json girisini ozellestirmek icin okur."""
+    if not prebuilt_dir:
+        return {}
+    path = os.path.join(prebuilt_dir, f"{base_name}.json")
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return {k: v for k, v in data.items() if k in ALLOWED_OVERRIDES}
+    except Exception as e:
+        print(f"Error reading overrides {path}: {e}")
+        return {}
+
+def merge_plugins(builds_dir, prebuilt_dir=None):
     plugins_json_path = os.path.join(builds_dir, "plugins.json")
     plugins = []
     if os.path.exists(plugins_json_path):
@@ -56,6 +73,7 @@ def merge_plugins(builds_dir):
             entry["fileHash"] = file_hash
             if "version" in manifest and manifest["version"]:
                 entry["version"] = manifest["version"]
+            entry.update(load_overrides(prebuilt_dir, base_name))
             print(f"Updated existing entry: {base_name}")
         else:
             # Create new entry
@@ -76,6 +94,7 @@ def merge_plugins(builds_dir):
                 "status": 1,
                 "apiVersion": 1
             }
+            entry.update(load_overrides(prebuilt_dir, base_name))
             plugins.append(entry)
             existing_map[base_name] = entry
             print(f"Added new plugin entry: {base_name}")
@@ -100,4 +119,5 @@ def merge_plugins(builds_dir):
 
 if __name__ == "__main__":
     target_dir = sys.argv[1] if len(sys.argv) > 1 else "."
-    merge_plugins(target_dir)
+    prebuilt = sys.argv[2] if len(sys.argv) > 2 else None
+    merge_plugins(target_dir, prebuilt)

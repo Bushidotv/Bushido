@@ -1,0 +1,8 @@
+{
+    "description": "BelgeselX - belgesel izleme kaynağı",
+    "authors": ["Wiojelt"],
+    "tvTypes": ["Documentary", "TvSeries", "Movie"],
+    "language": "tr",
+    "iconUrl": "https://www.google.com/s2/favicons?domain=belgeselx.com&sz=128",
+    "status": 1
+}

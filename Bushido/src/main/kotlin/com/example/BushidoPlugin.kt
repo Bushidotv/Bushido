@@ -6,31 +6,17 @@ import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 import com.lagradost.cloudstream3.plugins.Plugin
 
 @CloudstreamPlugin
-class ExamplePlugin: Plugin() {
+class BushidoPlugin : Plugin() {
     private var activity: AppCompatActivity? = null
 
     override fun load(context: Context) {
         activity = context as? AppCompatActivity
 
-
-        // Yeni dinamik Inat TV sağlayıcısı
+        // Canlı TV (Inat TV tabanlı dinamik sağlayıcı)
         registerMainAPI(DynamicLiveProvider())
 
         // Full Fight Replays VOD (UFC, Boxing, K-1, MMA)
         registerMainAPI(BushidoMMAProvider())
-
-        // FilmMakinesi (Filmler)
-        registerMainAPI(FilmMakinesi())
-        registerExtractorAPI(CloseLoadExtractor())
-        registerExtractorAPI(RapidExtractor())
-        registerExtractorAPI(DizipalPlayerExtractor())
-
-        // Yeni Kaynaklar
-        registerMainAPI(HDFilmCehennemi())
-        registerMainAPI(DiziMomProvider())
-        registerMainAPI(DizipalProvider())
-        registerMainAPI(HDFilmDelisi())
-        registerMainAPI(DizillaProvider())
 
         // Şablonun beraberinde getirdiği BlankFragment ayarlar menüsünü koruyoruz
         openSettings = {
