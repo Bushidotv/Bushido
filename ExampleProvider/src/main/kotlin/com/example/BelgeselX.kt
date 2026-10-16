@@ -194,9 +194,9 @@ class BelgeselX : MainAPI() {
                                     source  = this.name,
                                     name    = "${this.name} $quality",
                                     url     = videoUrl,
-                                    type    = ExtractorLinkType.VIDEO
+                                    type    = if (videoUrl.contains(".m3u8")) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
                                 ) {
-                                    this.referer = videoDataUrl
+                                    this.referer = data
                                     this.quality = getQualityFromName(quality)
                                 }
                             )
