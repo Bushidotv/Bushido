@@ -15,9 +15,6 @@ class BushidoPlugin : Plugin() {
         // Canlı TV (Inat TV tabanlı dinamik sağlayıcı)
         registerMainAPI(DynamicLiveProvider())
 
-        // Full Fight Replays VOD (UFC, Boxing, K-1, MMA)
-        registerMainAPI(BushidoMMAProvider())
-
         // Şablonun beraberinde getirdiği BlankFragment ayarlar menüsünü koruyoruz
         openSettings = {
             val frag = BlankFragment(this)

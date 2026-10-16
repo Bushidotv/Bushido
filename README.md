@@ -19,7 +19,8 @@ Bu depo, her biri **ayrı kurulan** CloudStream eklentilerinden oluşur:
 
 | Eklenti | İçerik |
 |---|---|
-| **Bushido** | 📺 Canlı TV (ulusal ve spor kanalları) ve 🥋 MMA/UFC/boks maç tekrarları |
+| **Bushido** | 📺 Canlı TV (ulusal ve spor kanalları) |
+| **BushidoMMA** | 🥋 MMA/UFC/boks/K-1 maç tekrarları |
 | **FilmMakinesi** | 🎬 Film ve dizi arşivi |
 | **HDFilmCehennemi** | 🎬 Film ve dizi arşivi |
 | **HDFilmDelisi** | 🎬 Filmler |
@@ -60,7 +61,7 @@ Eklentiyi CloudStream uygulamanıza eklemek son derece basittir:
 ## 🛠️ Depo Düzeni (Geliştirici Notları)
 
 ```text
-Bushido/  FilmMakinesi/  Dizipal/  ...   → kaynak koddan derlenen eklentiler (her klasör ayrı .cs3)
+Bushido/  BushidoMMA/  FilmMakinesi/  ...     → kaynak koddan derlenen eklentiler (her klasör ayrı .cs3)
 prebuilt/                               → hazır .cs3 dosyaları (olduğu gibi yayınlanır)
 scripts/merge_plugins.py                → plugins.json'u hazır dosyalarla birleştirir
 ```
