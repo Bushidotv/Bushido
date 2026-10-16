@@ -1,0 +1,8 @@
+{
+    "description": "RecTV filmler, diziler ve canlı yayınlar",
+    "authors": ["Wiojelt"],
+    "tvTypes": ["Movie", "TvSeries", "Live"],
+    "language": "tr",
+    "iconUrl": "https://raw.githubusercontent.com/Wiojelt/TurkSinema/builds/assets/rectv.png",
+    "status": 1
+}
