@@ -24,9 +24,6 @@ class ExamplePlugin: Plugin() {
         registerExtractorAPI(CloseLoadExtractor())
         registerExtractorAPI(RapidExtractor())
         registerExtractorAPI(DizipalPlayerExtractor())
-        // BelgeselX oynatıcıları (ok.ru ve Yandex Disk)
-        registerExtractorAPI(Odnoklassniki())
-        registerExtractorAPI(DiskYandexComTr())
 
         // Yeni Kaynaklar
         registerMainAPI(HDFilmCehennemi())
@@ -34,7 +31,6 @@ class ExamplePlugin: Plugin() {
         registerMainAPI(DizipalProvider())
         registerMainAPI(HDFilmDelisi())
         registerMainAPI(DizillaProvider())
-        registerMainAPI(BelgeselX())
 
         // Şablonun beraberinde getirdiği BlankFragment ayarlar menüsünü koruyoruz
         openSettings = {
