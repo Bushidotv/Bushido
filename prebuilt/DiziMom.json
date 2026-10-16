@@ -1,0 +1,8 @@
+{
+    "description": "DiziMom dizileri",
+    "authors": ["Wiojelt"],
+    "tvTypes": ["TvSeries"],
+    "language": "tr",
+    "iconUrl": "https://raw.githubusercontent.com/Wiojelt/TurkSinema/main/assets/providers/DiziMom.png",
+    "status": 1
+}
