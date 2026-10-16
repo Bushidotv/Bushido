@@ -13,25 +13,21 @@
 
 </div>
 
-## 📌 Özellikler
+## 📌 Eklentiler
 
-Bu eklenti, CloudStream uygulamasına tek bir paket halinde 3 güçlü sağlayıcı ekler:
+Bu depo, her biri **ayrı kurulan** CloudStream eklentilerinden oluşur:
 
-### 1. 📺 Bushido TR (Canlı TV & Spor)
-* **Ulusal & Spor Kanalları:** TRT 1, ATV, TV8, Beyaz TV, TRT Spor, A Spor, Bein Sports, S Sport ve daha fazlası.
-* **Yüksek Kalite:** HD/FHD canlı yayın akışları.
-* **Hızlı Bağlantı:** Dinamik HLS (m3u8) ayrıştırıcı ile kesintisiz canlı yayın performansı.
-
-### 2. 🥋 Bushido MMA (Dövüş Sporları Tekrarları)
-* **Kapsamlı Arşiv:** UFC, K-1, Kickboxing, PFL, KSW ve boks karşılaşmaları.
-* **Etkinlik Tekrarları:** Maçların tam tekrarları (Full Fight Replays).
-* **Arama & Filtreleme:** Dövüşçü ve organizasyon bazlı arama desteği.
-
-### 3. 🎬 Filmler (Film & Dizi Arşivi)
-* **Geniş Arşiv:** Yerli/yabancı en güncel filmler ve yabancı diziler.
-* **Kategoriler:** Aksiyon, Korku, Bilim Kurgu, Komedi, Macera, Gerilim, Fantastik.
-* **Akıllı Çözücü:** Gömülü JavaScript şifre çözme motoru ile yüksek hızlı video kaynakları.
-* **Altyazı Desteği:** Türkçe ve orijinal dil altyazı seçenekleri.
+| Eklenti | İçerik |
+|---|---|
+| **Bushido** | 📺 Canlı TV (ulusal ve spor kanalları) |
+| **BushidoMMA** | 🥋 MMA/UFC/boks/K-1 maç tekrarları |
+| **FilmMakinesi** | 🎬 Film ve dizi arşivi |
+| **HDFilmCehennemi** | 🎬 Film ve dizi arşivi |
+| **HDFilmDelisi** | 🎬 Filmler |
+| **Dizipal** | 📺 Diziler ve filmler |
+| **Dizilla** | 📺 Diziler |
+| **DiziMom** | 📺 Diziler |
+| **BelgeselX** | 🌍 Belgeseller (hazır `.cs3` olarak yayınlanır) |
 
 ---
 
@@ -50,7 +46,7 @@ Eklentiyi CloudStream uygulamanıza eklemek son derece basittir:
      https://raw.githubusercontent.com/Bushidotv/Bushido/master/repo.json
      ```
 6. **İndir / Ekle** butonuna tıklayın.
-7. Depo eklendikten sonra listeden **Bushido** eklentisini bulup **Yükle (Install)** butonuna basarak kurulumu tamamlayın.
+7. Depo eklendikten sonra listeden istediğiniz eklentileri bulup **Yükle (Install)** butonuna basarak kurulumu tamamlayın.
 
 ---
 
@@ -59,6 +55,22 @@ Eklentiyi CloudStream uygulamanıza eklemek son derece basittir:
 * 📱 **Android Telefonlar ve Tabletler**
 * 📺 **Android TV & Google TV**
 * 🖥️ **Fire TV Stick**
+
+---
+
+## 🛠️ Depo Düzeni (Geliştirici Notları)
+
+```text
+Bushido/  BushidoMMA/  FilmMakinesi/  ...     → kaynak koddan derlenen eklentiler (her klasör ayrı .cs3)
+prebuilt/                               → hazır .cs3 dosyaları (olduğu gibi yayınlanır)
+scripts/merge_plugins.py                → plugins.json'u hazır dosyalarla birleştirir
+```
+
+Her `master` güncellemesinde GitHub Actions tüm eklentileri derler, `prebuilt/` içindeki hazır dosyaları ekler ve `builds` dalını günceller. Eklenti listesi bu daldaki `plugins.json`'dan okunur.
+
+**Hazır `.cs3` eklemek:** Dosyayı `prebuilt/` klasörüne koyup `master`'a gönderin, başka bir şey gerekmez. İsterseniz aynı adlı bir `.json` dosyası (ör. `prebuilt/BelgeselX.json`) ile listedeki `description`, `authors`, `tvTypes`, `language`, `iconUrl`, `status` alanlarını ayarlayabilirsiniz. Dosyayı kaldırınca eklenti de listeden kalkar.
+
+**Kaynak koddan yeni eklenti eklemek:** Kök dizinde yeni bir klasör açıp içine `build.gradle.kts` ve `src/main/kotlin/...` koyun (örnek: `Dizilla/`). Klasör adı eklentinin adı olur ve otomatik derlenir.
 
 ---
 
