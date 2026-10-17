@@ -134,8 +134,31 @@ class DynamicLiveProvider : MainAPI() {
         )
 
         val channelList = mutableListOf<SearchResponse>()
-        val seen = HashSet<String>()
+        val seenNames = HashSet<String>()
 
+        // 1. Standart ana kanalları temiz, sıralı ve eksiksiz olarak ekle
+        for ((name, path) in DEFAULT_CHANNELS) {
+            val fullUrl = when (path) {
+                "__beyaztv__" -> BEYAZ_TV_M3U8
+                "__trt1__" -> TRT1_M3U8
+                "__atv__" -> ATV_M3U8
+                "__tv8__" -> TV8_M3U8
+                else -> "${mainUrl.trimEnd('/')}$path"
+            }
+            if (seenNames.add(name)) {
+                channelList.add(
+                    newLiveSearchResponse(
+                        name = name,
+                        url = fullUrl,
+                        type = TvType.Live
+                    ) {
+                        this.posterUrl = getChannelLogo(name)
+                    }
+                )
+            }
+        }
+
+        // 2. Sitedeki diğer maç/kanal linklerini tara (zaten ekli olanları seenNames ile engelle)
         try {
             val html = app.get(mainUrl, headers = headers).text
             val doc = Jsoup.parse(html)
@@ -147,15 +170,11 @@ class DynamicLiveProvider : MainAPI() {
                 val rawTitle = a.text().replace("▶", "").trim()
                 if (rawTitle.isEmpty()) continue
 
-                // TRT 1, ATV, TV8 ve Beyaz TV doğrudan resmi/özel CDN'den eklenecektir
-                if (fullUrl.contains("trt-1") || rawTitle.lowercase().contains("trt 1") ||
-                    fullUrl.contains("atv") || rawTitle.lowercase().contains("atv") ||
-                    fullUrl.contains("tv8") || rawTitle.lowercase().contains("tv8")) continue
+                val formattedName = formatChannelName(rawTitle)
+                val logo = getChannelLogo(formattedName)
 
-                val logo = getChannelLogo(rawTitle)
-                // Only include channels that have mapped logos
-                if (logo.isNotEmpty() && seen.add(fullUrl)) {
-                    val formattedName = formatChannelName(rawTitle)
+                // Yalnızca logosu eşleşen ve listede henüz bulunmayan kanalları ekle (böylece A Spor vs. asla mükerrer eklenmez)
+                if (logo.isNotEmpty() && seenNames.add(formattedName)) {
                     channelList.add(
                         newLiveSearchResponse(
                             name = formattedName,
@@ -168,29 +187,7 @@ class DynamicLiveProvider : MainAPI() {
                 }
             }
         } catch (e: Exception) {
-            // Fallback to static channel list if scraping fails
-        }
-
-        // Ensure all channels are always present in order
-        for ((name, path) in DEFAULT_CHANNELS) {
-            val fullUrl = when (path) {
-                "__beyaztv__" -> BEYAZ_TV_M3U8
-                "__trt1__" -> TRT1_M3U8
-                "__atv__" -> ATV_M3U8
-                "__tv8__" -> TV8_M3U8
-                else -> "${mainUrl.trimEnd('/')}$path"
-            }
-            if (seen.add(fullUrl)) {
-                channelList.add(
-                    newLiveSearchResponse(
-                        name = name,
-                        url = fullUrl,
-                        type = TvType.Live
-                    ) {
-                        this.posterUrl = getChannelLogo(name)
-                    }
-                )
-            }
+            // Siteden çekme başarısız olsa bile DEFAULT_CHANNELS hazır
         }
 
         return newHomePageResponse(request, channelList)
