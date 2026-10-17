@@ -21,15 +21,11 @@ Bu depo, her biri **ayrı kurulan** CloudStream eklentilerinden oluşur:
 |---|---|
 | **Bushido** | 📺 Canlı TV (ulusal ve spor kanalları) |
 | **BushidoMMA** | 🥋 MMA/UFC/boks/K-1 maç tekrarları |
-| **FilmMakinesi** | 🎬 Film ve dizi arşivi (hazır `.cs3` olarak yayınlanır) |
 | **HDFilmCehennemi** | 🎬 Film ve dizi arşivi |
-| **HDFilmDelisi** | 🎬 Filmler ve diziler (hazır `.cs3` olarak yayınlanır) |
 | **DiziPalHub** | 📺 Diziler ve filmler (hazır `.cs3` olarak yayınlanır) |
-| **Dizilla** | 📺 Diziler |
 | **DiziMom** | 📺 Diziler (hazır `.cs3` olarak yayınlanır) |
 | **BelgeselX** | 🌍 Belgeseller (hazır `.cs3` olarak yayınlanır) |
 | **RecTV** | 🎬 Filmler, diziler ve canlı yayınlar (hazır `.cs3` olarak yayınlanır) |
-| **Sinewix** | 🎬 Filmler ve diziler (hazır `.cs3` olarak yayınlanır) |
 | **FullHDFilmizlesene** | 🎬 Filmler ve diziler (hazır `.cs3` olarak yayınlanır) |
 
 ---
@@ -64,7 +60,7 @@ Eklentiyi CloudStream uygulamanıza eklemek son derece basittir:
 ## 🛠️ Depo Düzeni (Geliştirici Notları)
 
 ```text
-Bushido/  BushidoMMA/  FilmMakinesi/  ...     → kaynak koddan derlenen eklentiler (her klasör ayrı .cs3)
+Bushido/  BushidoMMA/  HDFilmCehennemi/  ...     → kaynak koddan derlenen eklentiler (her klasör ayrı .cs3)
 prebuilt/                               → hazır .cs3 dosyaları (olduğu gibi yayınlanır)
 scripts/merge_plugins.py                → plugins.json'u hazır dosyalarla birleştirir
 ```
@@ -73,7 +69,7 @@ Her `master` güncellemesinde GitHub Actions tüm eklentileri derler, `prebuilt/
 
 **Hazır `.cs3` eklemek:** Dosyayı `prebuilt/` klasörüne koyup `master`'a gönderin, başka bir şey gerekmez. İsterseniz aynı adlı bir `.json` dosyası (ör. `prebuilt/BelgeselX.json`) ile listedeki `description`, `authors`, `tvTypes`, `language`, `iconUrl`, `status` alanlarını ayarlayabilirsiniz. Dosyayı kaldırınca eklenti de listeden kalkar.
 
-**Kaynak koddan yeni eklenti eklemek:** Kök dizinde yeni bir klasör açıp içine `build.gradle.kts` ve `src/main/kotlin/...` koyun (örnek: `Dizilla/`). Klasör adı eklentinin adı olur ve otomatik derlenir.
+**Kaynak koddan yeni eklenti eklemek:** Kök dizinde yeni bir klasör açıp içine `build.gradle.kts` ve `src/main/kotlin/...` koyun (örnek: `HDFilmCehennemi/`). Klasör adı eklentinin adı olur ve otomatik derlenir.
 
 ---
 
