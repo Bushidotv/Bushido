@@ -10,7 +10,7 @@ import org.jsoup.Jsoup
 
 class DynamicLiveProvider : MainAPI() {
     override var name = "Bushido TR"
-    override var mainUrl = "https://ardaspor31.top"
+    override var mainUrl = "https://ardaspor32.top"
     override var lang = "tr"
     override val hasMainPage = true
     override val supportedTypes = setOf(TvType.Live)
@@ -443,9 +443,14 @@ class DynamicLiveProvider : MainAPI() {
         // BeIN Sports 1: Huhu.to 1080p 50FPS Full HD yayın havuzu
         var addedHuhu = false
         if (data.contains("bein-sports-1")) {
-            val huhuIds = listOf(1352421053L, 662179620L, 593493860L, 300113394L, 3840475653L)
-            var count = 0
-            for ((index, cid) in huhuIds.withIndex()) {
+            val huhuIds = listOf(
+                1352421053L to "BeIN Sports 1 - 1080p 50FPS (Ana)",
+                662179620L to "BeIN Sports 1 - 1080p HD (Yedek 1)",
+                593493860L to "BeIN Sports 1 - 1080p (Yedek 2)",
+                300113394L to "BeIN Sports 1 - 720p (Yedek 3)",
+                3840475653L to "BeIN Sports 1 - 720p (Yedek 4)"
+            )
+            for ((cid, serverName) in huhuIds) {
                 try {
                     val resolveUrl = "https://huhu.to/live/resolve?url=https://huhu.to/live/play/$cid"
                     val respText = app.get(
@@ -457,9 +462,7 @@ class DynamicLiveProvider : MainAPI() {
                         timeout = 4
                     ).text
                     val streamUrl = Regex(""""url"\s*:\s*"([^"]+)"""").find(respText)?.groupValues?.get(1)?.replace("\\/", "/")
-                    val isRawIp = streamUrl != null && Regex("""^https?://\d+\.\d+\.\d+\.\d+""").containsMatchIn(streamUrl)
-                    if (!streamUrl.isNullOrBlank() && streamUrl.startsWith("http") && !isRawIp) {
-                        val serverName = if (index == 0) "BeIN Sports 1 - 1080p 50FPS (Ana)" else "BeIN Sports 1 - 1080p (Yedek $index)"
+                    if (!streamUrl.isNullOrBlank() && streamUrl.startsWith("http")) {
                         callback.invoke(
                             newExtractorLink(
                                 source = this.name,
@@ -472,12 +475,10 @@ class DynamicLiveProvider : MainAPI() {
                                     "User-Agent" to USER_AGENT,
                                     "Referer" to "https://huhu.to/"
                                 )
-                                this.quality = Qualities.P1080.value
+                                this.quality = if (serverName.contains("720p")) Qualities.P720.value else Qualities.P1080.value
                             }
                         )
-                        count++
                         addedHuhu = true
-                        if (count >= 2) break
                     }
                 } catch (e: Throwable) {
                     // Diğer ID'yi dene
@@ -557,7 +558,7 @@ class DynamicLiveProvider : MainAPI() {
             }
         }
 
-        if (m3u8Url.isNullOrEmpty()) return false
+        if (m3u8Url.isNullOrEmpty()) return addedHuhu
 
         callback.invoke(
             newExtractorLink(
@@ -566,11 +567,10 @@ class DynamicLiveProvider : MainAPI() {
                 url = m3u8Url,
                 type = ExtractorLinkType.M3U8
             ) {
-                this.referer = "$mainUrl/"
+                this.referer = loadUrl
                 this.headers = mapOf(
                     "User-Agent" to USER_AGENT,
-                    "Referer" to "$mainUrl/",
-                    "Origin" to mainUrl
+                    "Referer" to loadUrl
                 )
                 this.quality = Qualities.P1080.value
             }
