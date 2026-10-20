@@ -456,15 +456,123 @@ class DynamicLiveProvider : MainAPI() {
             return true
         }
 
-        // BeIN Sports 1: Huhu.to 1080p 50FPS Full HD yayın havuzu
-        var addedHuhu = false
+        val targetUrl = if (data.contains("ardaspor")) {
+            val path = "/" + data.substringAfter("://").substringAfter("/")
+            "${mainUrl.trimEnd('/')}$path"
+        } else if (data.startsWith("http")) {
+            data
+        } else {
+            "${mainUrl.trimEnd('/')}/${data.trimStart('/')}"
+        }
+
+        var foundStream = false
+
+        // 1. Fetch match page (Ana ArdaSpor Akışı)
+        val mainHtml = try {
+            app.get(targetUrl, headers = baseHeaders).text
+        } catch (e: Exception) {
+            null
+        }
+
+        if (mainHtml != null) {
+            val doc1 = Jsoup.parse(mainHtml)
+            val iframe1 = doc1.selectFirst("#playerFrame, iframe[src*=channel/watch], iframe[src*=loadstream]")
+            val rawWatchPath = iframe1?.attr("src")?.trim()
+            if (rawWatchPath != null) {
+                val watchUrl = if (rawWatchPath.startsWith("http")) rawWatchPath else "${mainUrl.trimEnd('/')}/${rawWatchPath.trimStart('/')}"
+
+                // 2. Fetch watch page
+                val loadUrl = if (watchUrl.contains("loadstream")) {
+                    watchUrl
+                } else {
+                    baseHeaders["Referer"] = targetUrl
+                    val watchHtml = try {
+                        app.get(watchUrl, headers = baseHeaders).text
+                    } catch (e: Exception) {
+                        null
+                    }
+                    if (watchHtml != null) {
+                        val doc2 = Jsoup.parse(watchHtml)
+                        val iframe2 = doc2.selectFirst("iframe[src*=loadstream]")
+                        val rawLoadPath = iframe2?.attr("src")?.trim()
+                        if (rawLoadPath != null) {
+                            if (rawLoadPath.startsWith("http")) rawLoadPath else "${mainUrl.trimEnd('/')}/${rawLoadPath.trimStart('/')}"
+                        } else null
+                    } else null
+                }
+
+                if (loadUrl != null) {
+                    // 3. Fetch loadstream.php
+                    baseHeaders["Referer"] = watchUrl
+                    val loadHtml = try {
+                        app.get(loadUrl, headers = baseHeaders).text
+                    } catch (e: Exception) {
+                        null
+                    }
+
+                    if (loadHtml != null) {
+                        // 4. Extract m3u8
+                        var m3u8Url: String? = null
+                        val directMatch = Regex("""https?://[^\s"'<>]+\.m3u8[^\s"'<>]*""").find(loadHtml)
+                        if (directMatch != null) {
+                            m3u8Url = directMatch.value
+                        } else {
+                            val atobIndex = loadHtml.indexOf("|atob")
+                            if (atobIndex != -1) {
+                                val beforeAtob = loadHtml.substring(0, atobIndex)
+                                val lastQuote = maxOf(beforeAtob.lastIndexOf('\''), beforeAtob.lastIndexOf('"'))
+                                if (lastQuote != -1) {
+                                    val b64Str = beforeAtob.substring(lastQuote + 1)
+                                    val decoded = decodeBase64(b64Str)
+                                    val m = Regex("""https?://[^\s"'<>]+\.m3u8[^\s"'<>]*""").find(decoded)
+                                    if (m != null) {
+                                        m3u8Url = m.value
+                                    }
+                                }
+                            }
+                        }
+
+                        if (m3u8Url == null) {
+                            Regex("""[A-Za-z0-9+/=]{40,}""").findAll(loadHtml).forEach { match ->
+                                if (m3u8Url == null) {
+                                    val dec = decodeBase64(match.value)
+                                    val m = Regex("""https?://[^\s"'<>]+\.m3u8[^\s"'<>]*""").find(dec)
+                                    if (m != null && !m.value.contains("bsky.app") && !m.value.contains("preroll")) {
+                                        m3u8Url = m.value
+                                    }
+                                }
+                            }
+                        }
+
+                        if (!m3u8Url.isNullOrEmpty()) {
+                            callback.invoke(
+                                newExtractorLink(
+                                    source = this.name,
+                                    name = "${this.name} - HD (Ana)",
+                                    url = m3u8Url,
+                                    type = ExtractorLinkType.M3U8
+                                ) {
+                                    this.referer = loadUrl
+                                    this.headers = mapOf(
+                                        "User-Agent" to USER_AGENT,
+                                        "Referer" to loadUrl
+                                    )
+                                    this.quality = Qualities.P1080.value
+                                }
+                            )
+                            foundStream = true
+                        }
+                    }
+                }
+            }
+        }
+
+        // BeIN Sports 1 için çalışan Huhu yedek yayınlarını ekle
         if (data.contains("bein-sports-1")) {
             val huhuIds = listOf(
-                1352421053L to "BeIN Sports 1 - 1080p 50FPS (Ana)",
-                662179620L to "BeIN Sports 1 - 1080p HD (Yedek 1)",
+                662179620L to "BeIN Sports 1 - 1080p (Yedek 1)",
                 593493860L to "BeIN Sports 1 - 1080p (Yedek 2)",
-                300113394L to "BeIN Sports 1 - 720p (Yedek 3)",
-                3840475653L to "BeIN Sports 1 - 720p (Yedek 4)"
+                3840475653L to "BeIN Sports 1 - 720p (Yedek 3)"
             )
             for ((cid, serverName) in huhuIds) {
                 try {
@@ -475,7 +583,7 @@ class DynamicLiveProvider : MainAPI() {
                             "User-Agent" to USER_AGENT,
                             "Referer" to "https://huhu.to/"
                         ),
-                        timeout = 4
+                        timeout = 3
                     ).text
                     val streamUrl = Regex(""""url"\s*:\s*"([^"]+)"""").find(respText)?.groupValues?.get(1)?.replace("\\/", "/")
                     if (!streamUrl.isNullOrBlank() && streamUrl.startsWith("http")) {
@@ -494,112 +602,14 @@ class DynamicLiveProvider : MainAPI() {
                                 this.quality = if (serverName.contains("720p")) Qualities.P720.value else Qualities.P1080.value
                             }
                         )
-                        addedHuhu = true
+                        foundStream = true
                     }
                 } catch (e: Throwable) {
                     // Diğer ID'yi dene
                 }
             }
-            if (addedHuhu) {
-                return true
-            }
         }
 
-        val targetUrl = if (data.contains("ardaspor")) {
-            val path = "/" + data.substringAfter("://").substringAfter("/")
-            "${mainUrl.trimEnd('/')}$path"
-        } else if (data.startsWith("http")) {
-            data
-        } else {
-            "${mainUrl.trimEnd('/')}/${data.trimStart('/')}"
-        }
-
-        // 1. Fetch match page
-        val mainHtml = try {
-            app.get(targetUrl, headers = baseHeaders).text
-        } catch (e: Exception) {
-            return addedHuhu
-        }
-
-        val doc1 = Jsoup.parse(mainHtml)
-        val iframe1 = doc1.selectFirst("#playerFrame, iframe[src*=channel/watch], iframe[src*=loadstream]")
-        val rawWatchPath = iframe1?.attr("src")?.trim() ?: return false
-        val watchUrl = if (rawWatchPath.startsWith("http")) rawWatchPath else "${mainUrl.trimEnd('/')}/${rawWatchPath.trimStart('/')}"
-
-        // 2. Fetch watch page
-        val loadUrl = if (watchUrl.contains("loadstream")) {
-            watchUrl
-        } else {
-            baseHeaders["Referer"] = targetUrl
-            val watchHtml = try {
-                app.get(watchUrl, headers = baseHeaders).text
-            } catch (e: Exception) {
-                return false
-            }
-            val doc2 = Jsoup.parse(watchHtml)
-            val iframe2 = doc2.selectFirst("iframe[src*=loadstream]")
-            val rawLoadPath = iframe2?.attr("src")?.trim() ?: return false
-            if (rawLoadPath.startsWith("http")) rawLoadPath else "${mainUrl.trimEnd('/')}/${rawLoadPath.trimStart('/')}"
-        }
-
-        // 3. Fetch loadstream.php
-        baseHeaders["Referer"] = watchUrl
-        val loadHtml = try {
-            app.get(loadUrl, headers = baseHeaders).text
-        } catch (e: Exception) {
-            return false
-        }
-
-        // 4. Extract m3u8
-        var m3u8Url: String? = null
-        val directMatch = Regex("""https?://[^\s"'<>]+\.m3u8[^\s"'<>]*""").find(loadHtml)
-        if (directMatch != null) {
-            m3u8Url = directMatch.value
-        } else {
-            val atobIndex = loadHtml.indexOf("|atob")
-            if (atobIndex != -1) {
-                val beforeAtob = loadHtml.substring(0, atobIndex)
-                val lastQuote = maxOf(beforeAtob.lastIndexOf('\''), beforeAtob.lastIndexOf('"'))
-                if (lastQuote != -1) {
-                    val b64Str = beforeAtob.substring(lastQuote + 1)
-                    val decoded = decodeBase64(b64Str)
-                    val m = Regex("""https?://[^\s"'<>]+\.m3u8[^\s"'<>]*""").find(decoded)
-                    if (m != null) {
-                        m3u8Url = m.value
-                    }
-                }
-            }
-        }
-
-        if (m3u8Url == null) {
-            Regex("""[A-Za-z0-9+/=]{40,}""").findAll(loadHtml).forEach { match ->
-                if (m3u8Url == null) {
-                    val dec = decodeBase64(match.value)
-                    val m = Regex("""https?://[^\s"'<>]+\.m3u8[^\s"'<>]*""").find(dec)
-                    if (m != null && !m.value.contains("bsky.app") && !m.value.contains("preroll")) {
-                        m3u8Url = m.value
-                    }
-                }
-            }
-        }
-
-        if (m3u8Url.isNullOrEmpty()) return addedHuhu
-
-        callback.invoke(
-            newExtractorLink(
-                source = this.name,
-                name = "${this.name} - HD",
-                url = m3u8Url,
-                type = ExtractorLinkType.M3U8
-            ) {
-                this.referer = loadUrl
-                this.headers = mapOf(
-                    "User-Agent" to USER_AGENT,
-                    "Referer" to loadUrl
-                )
-                this.quality = Qualities.P1080.value
-            }
-        )
-        return true
+        return foundStream
     }
 }
