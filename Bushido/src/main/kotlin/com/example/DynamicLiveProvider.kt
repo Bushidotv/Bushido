@@ -10,7 +10,7 @@ import org.jsoup.Jsoup
 
 class DynamicLiveProvider : MainAPI() {
     override var name = "Bushido Spor"
-    override var mainUrl = "https://ardaspor32.top"
+    override var mainUrl = "https://ardaspor33.top"
     override var lang = "tr"
     override val hasMainPage = true
     override val supportedTypes = setOf(TvType.Live)
@@ -96,7 +96,7 @@ class DynamicLiveProvider : MainAPI() {
                 "s sport" in lower || "s-sport" in lower || "ssport" in lower -> "S SPORT"
                 "trt spor" in lower || "trtspor" in lower -> "TRT SPOR"
                 "trt 1" in lower || "trt1" in lower -> "TRT 1"
-                "a spor" in lower || "aspor" in lower || "a-spor" in lower -> "A SPOR"
+                ("a spor" in lower || "aspor" in lower || "a-spor" in lower) && !lower.contains("ardaspor") -> "A SPOR"
                 lower == "atv" || lower == "a tv" -> "ATV"
                 lower == "tv8" || lower == "tv 8" -> "TV8"
                 "beyaz" in lower -> "BEYAZ TV"
@@ -118,7 +118,7 @@ class DynamicLiveProvider : MainAPI() {
                 "s sport" in lower || "s-sport" in lower || "ssport" in lower -> "$LOGO_BASE/Ssport.png"
                 "trt spor" in lower || "trtspor" in lower -> "$LOGO_BASE/Trtspor.png"
                 "trt 1" in lower || "trt1" in lower -> "$LOGO_BASE/Trt1.png"
-                "a spor" in lower || "aspor" in lower || "a-spor" in lower -> "$LOGO_BASE/Aspor.png"
+                ("a spor" in lower || "aspor" in lower || "a-spor" in lower) && !lower.contains("ardaspor") -> "$LOGO_BASE/Aspor.png"
                 lower == "atv" || lower == "a tv" -> "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ee/ATV_%28Turkish_TV_channel%29_logo.svg/320px-ATV_%28Turkish_TV_channel%29_logo.svg.png"
                 lower == "tv8" || lower == "tv 8" -> "https://tr.canlitv.watch/channels/tv8.webp"
                 "beyaz" in lower -> "$LOGO_BASE/Beyaztv.png"
@@ -260,6 +260,25 @@ class DynamicLiveProvider : MainAPI() {
             }
         }
 
+        val matchedChannel = DEFAULT_CHANNELS.find { (name, path) ->
+            url == path || url.endsWith(path) || url.substringAfterLast("/").equals(path.substringAfterLast("/"), ignoreCase = true)
+        }
+
+        if (matchedChannel != null) {
+            val title = matchedChannel.first
+            val logo = getChannelLogo(title)
+            return newLiveStreamLoadResponse(
+                name = title,
+                url = url,
+                dataUrl = url
+            ) {
+                if (logo.isNotEmpty()) {
+                    this.posterUrl = logo
+                }
+                this.plot = "7/24 Canli TV Yayini"
+            }
+        }
+
         val headers = mapOf(
             "User-Agent" to USER_AGENT,
             "Referer" to "$mainUrl/"
@@ -271,7 +290,7 @@ class DynamicLiveProvider : MainAPI() {
             null
         }
 
-        val rawTitle = doc?.selectFirst("h1, .match-title, title")?.text()
+        val rawTitle = doc?.selectFirst("h1, .match-title")?.text()
             ?.replace("| Canlı Maç İzle", "")
             ?.replace("▶", "")
             ?.trim()
@@ -486,9 +505,18 @@ class DynamicLiveProvider : MainAPI() {
             }
         }
 
+        val targetUrl = if (data.contains("ardaspor")) {
+            val path = "/" + data.substringAfter("://").substringAfter("/")
+            "${mainUrl.trimEnd('/')}$path"
+        } else if (data.startsWith("http")) {
+            data
+        } else {
+            "${mainUrl.trimEnd('/')}/${data.trimStart('/')}"
+        }
+
         // 1. Fetch match page
         val mainHtml = try {
-            app.get(data, headers = baseHeaders).text
+            app.get(targetUrl, headers = baseHeaders).text
         } catch (e: Exception) {
             return addedHuhu
         }
@@ -502,7 +530,7 @@ class DynamicLiveProvider : MainAPI() {
         val loadUrl = if (watchUrl.contains("loadstream")) {
             watchUrl
         } else {
-            baseHeaders["Referer"] = data
+            baseHeaders["Referer"] = targetUrl
             val watchHtml = try {
                 app.get(watchUrl, headers = baseHeaders).text
             } catch (e: Exception) {
