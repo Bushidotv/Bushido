@@ -9,7 +9,7 @@ import com.lagradost.cloudstream3.utils.newExtractorLink
 import org.jsoup.Jsoup
 
 class DynamicLiveProvider : MainAPI() {
-    override var name = "Bushido TR"
+    override var name = "Bushido Spor"
     override var mainUrl = "https://ardaspor32.top"
     override var lang = "tr"
     override val hasMainPage = true

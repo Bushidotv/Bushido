@@ -4,11 +4,11 @@ dependencies {
 }
 
 // Sürüm numarasını tam sayı (Integer) olarak belirtiyoruz
-version = 57
+version = 58
 
 cloudstream {
     // Eklentimizin uygulamanin uzantilar sayfasinda gorunecek bilgileri
-    description = "Canli TV yayinlari (ulusal ve spor kanallari)"
+    description = "Canli spor ve TV yayinlari"
     authors = listOf("BushidoTV")
 
     /**
