@@ -1,9 +1,9 @@
 // Sürüm numarasını tam sayı (Integer) olarak belirtiyoruz
-version = 1
+version = 2
 
 cloudstream {
     description = "HDFilmCehennemi filmleri ve dizileri"
-    authors = listOf("BushidoTV")
+    authors = listOf("Bushido")
 
     /**
     * Status int as one of the following:

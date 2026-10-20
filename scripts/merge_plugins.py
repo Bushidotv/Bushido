@@ -85,7 +85,7 @@ def merge_plugins(builds_dir, prebuilt_dir=None):
                 "url": f"https://raw.githubusercontent.com/Bushidotv/Bushido/builds/{cs3_name}",
                 "fileSize": file_size,
                 "fileHash": file_hash,
-                "authors": ["BushidoTV"],
+                "authors": ["Bushido"],
                 "repositoryUrl": "https://github.com/Bushidotv/Bushido",
                 "iconUrl": "https://raw.githubusercontent.com/Bushidotv/Bushido/master/icon.png",
                 "description": manifest.get("description", f"{name} Eklentisi"),
@@ -98,6 +98,9 @@ def merge_plugins(builds_dir, prebuilt_dir=None):
             plugins.append(entry)
             existing_map[base_name] = entry
             print(f"Added new plugin entry: {base_name}")
+
+    for p in plugins:
+        p["authors"] = ["Bushido"]
 
     with open(plugins_json_path, "w", encoding="utf-8") as f:
         json.dump(plugins, f, indent=4, ensure_ascii=False)

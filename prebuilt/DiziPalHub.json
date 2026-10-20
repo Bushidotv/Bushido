@@ -1,6 +1,6 @@
 {
     "description": "DiziPalHub dizi ve filmleri",
-    "authors": ["Wiojelt"],
+    "authors": ["Bushido"],
     "tvTypes": ["Movie", "TvSeries"],
     "language": "tr",
     "iconUrl": "https://raw.githubusercontent.com/Bushidotv/Bushido/master/icon.png",

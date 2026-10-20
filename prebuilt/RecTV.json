@@ -1,6 +1,6 @@
 {
     "description": "RecTV filmler, diziler ve canlı yayınlar",
-    "authors": ["Wiojelt"],
+    "authors": ["Bushido"],
     "tvTypes": ["Movie", "TvSeries", "Live"],
     "language": "tr",
     "iconUrl": "https://raw.githubusercontent.com/Wiojelt/TurkSinema/builds/assets/rectv.png",
