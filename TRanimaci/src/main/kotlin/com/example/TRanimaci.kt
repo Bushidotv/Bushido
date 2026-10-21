@@ -1,18 +1,18 @@
 package com.example
 
+import android.util.Log
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.network.CloudflareKiller
 import com.lagradost.cloudstream3.utils.*
-import okhttp3.Interceptor
-import okhttp3.Response
 import org.json.JSONArray
 import org.json.JSONObject
-import org.jsoup.Jsoup
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
 class TRanimaci : MainAPI() {
     companion object {
+        private const val TAG = "TRanimaci"
         private const val USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
     }
@@ -25,37 +25,40 @@ class TRanimaci : MainAPI() {
     override val supportedTypes = setOf(TvType.Anime, TvType.AnimeMovie, TvType.OVA)
 
     override var sequentialMainPage = true
-    override var sequentialMainPageDelay = 200L
-    override var sequentialMainPageScrollDelay = 200L
+    override var sequentialMainPageDelay = 150L
+    override var sequentialMainPageScrollDelay = 150L
 
     private val cloudflareKiller by lazy { CloudflareKiller() }
-    private val interceptor by lazy { CloudflareInterceptor(cloudflareKiller) }
-
-    class CloudflareInterceptor(private val cloudflareKiller: CloudflareKiller) : Interceptor {
-        override fun intercept(chain: Interceptor.Chain): Response {
-            val request = chain.request()
-            val response = chain.proceed(request)
-            val doc = Jsoup.parse(response.peekBody(1024 * 1024).string())
-
-            if (doc.html().contains("Just a moment")) {
-                return cloudflareKiller.intercept(chain)
-            }
-
-            return response
-        }
-    }
 
     override val mainPage = mainPageOf(
+        "${mainUrl}/"                              to "Ana Sayfa",
         "${mainUrl}/en"                            to "Son Eklenenler",
+        "${mainUrl}/anime"                         to "Animeler",
         "${mainUrl}/en/anime"                      to "Tüm Animeler",
-        "${mainUrl}/en/anime-filmleri"             to "Anime Filmleri",
-        "${mainUrl}/en/kategori/aksiyon-anime"     to "Aksiyon",
-        "${mainUrl}/en/kategori/macera-anime"      to "Macera",
-        "${mainUrl}/en/kategori/komedi-anime"      to "Komedi",
-        "${mainUrl}/en/kategori/fantastik-anime"   to "Fantastik",
-        "${mainUrl}/en/kategori/romantizm-anime"   to "Romantizm",
-        "${mainUrl}/en/kategori/shounen-anime"     to "Shounen"
+        "${mainUrl}/anime-filmleri"                to "Anime Filmleri",
+        "${mainUrl}/kategori/aksiyon-anime"        to "Aksiyon",
+        "${mainUrl}/kategori/komedi-anime"         to "Komedi",
+        "${mainUrl}/kategori/fantastik-anime"      to "Fantastik",
+        "${mainUrl}/kategori/romantizm-anime"      to "Romantizm",
+        "${mainUrl}/kategori/shounen-anime"        to "Shounen"
     )
+
+    private fun safeGet(url: String, referer: String = "$mainUrl/"): Document? {
+        return try {
+            app.get(
+                url,
+                headers = mapOf(
+                    "User-Agent" to USER_AGENT,
+                    "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Referer" to referer
+                ),
+                interceptor = cloudflareKiller
+            ).document
+        } catch (e: Exception) {
+            Log.e(TAG, "Request failed for $url: ${e.message}")
+            null
+        }
+    }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val baseUrl = request.data
@@ -65,21 +68,7 @@ class TRanimaci : MainAPI() {
             baseUrl
         }
 
-        val res = try {
-            app.get(
-                url,
-                headers = mapOf(
-                    "User-Agent" to USER_AGENT,
-                    "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                    "Referer" to "$mainUrl/"
-                ),
-                interceptor = interceptor
-            )
-        } catch (_: Exception) {
-            return newHomePageResponse(request.name, emptyList())
-        }
-
-        val document = res.document
+        val document = safeGet(url) ?: return newHomePageResponse(request.name, emptyList())
         val home = mutableListOf<SearchResponse>()
 
         // 1. Next.js __NEXT_DATA__ JSON Parser
@@ -91,38 +80,29 @@ class TRanimaci : MainAPI() {
                 if (pageProps != null) {
                     parseNextDataItems(pageProps, home)
                 }
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                Log.e(TAG, "JSON parse error: ${e.message}")
+            }
         }
 
-        // 2. DiziPal Card Scraper Architecture
+        // 2. HTML Scraper (DiziPal Card & Anchor pattern)
         if (home.isEmpty()) {
-            val selectors = listOf(
-                "ul.content-grid > li",
-                "div.content-grid > div",
-                "div.episodes-list-grid > a",
-                "div.grid > div",
-                "article",
-                "div.anime-card",
-                "div.card",
-                "a.dp-poster",
-                "a.dp-episode",
-                "a[href*='/anime/']",
-                "a[href*='/series/']",
-                "a[href*='/video/']",
-                "a[href*='bolum']"
+            // Find all anchor links to anime or episodes
+            val elements = document.select(
+                "ul.content-grid > li, div.content-grid > div, div.grid > div, article, " +
+                "div.anime-card, div.card, a[href*='/anime/'], a[href*='/series/'], a[href*='/video/'], a[href*='bolum']"
             )
 
-            for (selector in selectors) {
-                val elements = document.select(selector)
-                if (elements.isNotEmpty()) {
-                    elements.mapNotNull { it.toSearchResult() }.forEach { home.add(it) }
-                    if (home.isNotEmpty()) break
+            for (element in elements) {
+                val item = element.toSearchResult()
+                if (item != null) {
+                    home.add(item)
                 }
             }
         }
 
         val distinct = home.distinctBy { it.url }
-        return newHomePageResponse(request.name, distinct, hasNext = distinct.size >= 10)
+        return newHomePageResponse(request.name, distinct, hasNext = distinct.size >= 8)
     }
 
     private fun Element.toSearchResult(): SearchResponse? {
@@ -132,27 +112,42 @@ class TRanimaci : MainAPI() {
             this.selectFirst("a[href*='/anime/'], a[href*='/series/'], a[href*='/video/'], a[href*='bolum'], a") ?: return null
         }
 
-        val rawHref = anchor.attr("href").ifBlank { return null }
+        val rawHref = anchor.attr("href").trim()
+        if (rawHref.isBlank() || rawHref == "#" || rawHref.startsWith("javascript:")) return null
         val href = fixUrlNull(rawHref) ?: return null
 
-        // Ignore utility links
-        if (href.contains("/kategori/") || href.contains("/login") || href.contains("/register") || href == "$mainUrl/" || href == "$mainUrl/en") {
+        // Ignore utility / auth links
+        if (href.contains("/kategori/") || href.contains("/login") || href.contains("/register") ||
+            href == "$mainUrl" || href == "$mainUrl/" || href == "$mainUrl/en" || href == "$mainUrl/en/") {
             return null
         }
 
         val imgElement = this.selectFirst("img") ?: anchor.selectFirst("img")
         val posterUrl = fixUrlNull(
-            imgElement?.attr("data-src")?.ifBlank { null }
-                ?: imgElement?.attr("data-lazy-src")?.ifBlank { null }
-                ?: imgElement?.attr("srcset")?.split(" ")?.firstOrNull()?.ifBlank { null }
-                ?: imgElement?.attr("src")?.ifBlank { null }
+            imgElement?.attr("data-src")?.takeIf { it.isNotBlank() }
+                ?: imgElement?.attr("data-lazy-src")?.takeIf { it.isNotBlank() }
+                ?: imgElement?.attr("srcset")?.split(" ")?.firstOrNull()?.takeIf { it.isNotBlank() }
+                ?: imgElement?.attr("src")?.takeIf { it.isNotBlank() }
+                ?: this.selectFirst("img")?.attr("src")?.takeIf { it.isNotBlank() }
         )
 
-        val rawTitle = this.selectFirst("h1, h2, h3, h4, .title, .name, .card-title, .anime-title, .film-title, .ep-title")?.text()?.trim()
-            ?.ifBlank { null }
-            ?: anchor.attr("title").trim().ifBlank { null }
-            ?: imgElement?.attr("alt")?.trim()?.ifBlank { null }
-            ?: return null
+        // Bulletproof Title extraction: DOM elements -> attributes -> URL slug fallback
+        val domTitle = this.selectFirst("h1, h2, h3, h4, h5, p, span, .title, .name, .card-title, .anime-title, .film-title, .ep-title")?.text()?.trim()
+        val attrTitle = anchor.attr("title").trim()
+        val altTitle = imgElement?.attr("alt")?.trim()
+        val rawTitle = if (!domTitle.isNullOrBlank() && domTitle.length < 80) {
+            domTitle
+        } else if (attrTitle.isNotBlank()) {
+            attrTitle
+        } else if (!altTitle.isNullOrBlank()) {
+            altTitle
+        } else {
+            // Slug fallback (e.g. /anime/naruto-shippuuden -> Naruto shippuuden)
+            href.trimEnd('/').substringAfterLast('/')
+                .replace('-', ' ')
+                .replace('_', ' ')
+                .replaceFirstChar { it.uppercase() }
+        }
 
         val cleanTitle = rawTitle.replace(Regex("""(?i)\s*(izle|full\s*hd|hd|türkçe\s*altyazı.*)$"""), "").trim()
         if (cleanTitle.isBlank()) return null
@@ -178,21 +173,7 @@ class TRanimaci : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
         val searchUrl = "$mainUrl/en/ara?q=$query"
-        val res = try {
-            app.get(
-                searchUrl,
-                headers = mapOf(
-                    "User-Agent" to USER_AGENT,
-                    "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                    "Referer" to "$mainUrl/"
-                ),
-                interceptor = interceptor
-            )
-        } catch (_: Exception) {
-            return emptyList()
-        }
-
-        val document = res.document
+        val document = safeGet(searchUrl) ?: safeGet("$mainUrl/ara?q=$query") ?: return emptyList()
         val results = mutableListOf<SearchResponse>()
 
         val nextDataScript = document.selectFirst("script#__NEXT_DATA__")?.data()
@@ -207,9 +188,11 @@ class TRanimaci : MainAPI() {
         }
 
         if (results.isEmpty()) {
-            document.select("a[href*='/anime/'], a[href*='/series/'], article, div.anime-card, div.card, ul.content-grid > li")
-                .mapNotNull { it.toSearchResult() }
-                .forEach { results.add(it) }
+            val elements = document.select("a[href*='/anime/'], a[href*='/series/'], article, div.anime-card, div.card, ul.content-grid > li")
+            for (element in elements) {
+                val item = element.toSearchResult()
+                if (item != null) results.add(item)
+            }
         }
 
         return results.distinctBy { it.url }
@@ -219,29 +202,17 @@ class TRanimaci : MainAPI() {
 
     override suspend fun load(url: String): LoadResponse? {
         val fixedUrl = fixUrl(url)
-        val res = try {
-            app.get(
-                fixedUrl,
-                headers = mapOf(
-                    "User-Agent" to USER_AGENT,
-                    "Referer" to "$mainUrl/"
-                ),
-                interceptor = interceptor
-            )
-        } catch (_: Exception) {
-            return null
-        }
-
-        val document = res.document
+        val document = safeGet(fixedUrl) ?: return null
 
         val title = document.selectFirst("h1.series-title, h1.anime-title, h1.entry-title, h1")?.text()?.trim()
             ?: document.selectFirst("meta[property=og:title]")?.attr("content")?.substringBefore(" izle")?.trim()
-            ?: return null
+            ?: fixedUrl.trimEnd('/').substringAfterLast('/').replace('-', ' ').replaceFirstChar { it.uppercase() }
 
         val poster = fixUrlNull(
             document.selectFirst("meta[property=og:image]")?.attr("content")
                 ?: document.selectFirst("div.poster img, img.poster, div.anime-poster img")?.attr("data-src")
                 ?: document.selectFirst("div.poster img, img.poster, div.anime-poster img")?.attr("src")
+                ?: document.selectFirst("img")?.attr("src")
         )
 
         val description = document.selectFirst("div.synopsis, div.anime-details p, p.series-description, meta[property=og:description]")?.let {
@@ -255,7 +226,7 @@ class TRanimaci : MainAPI() {
 
         val episodes = mutableListOf<Episode>()
 
-        // Check __NEXT_DATA__
+        // 1. Next.js episodes
         val nextDataScript = document.selectFirst("script#__NEXT_DATA__")?.data()
         if (!nextDataScript.isNullOrBlank()) {
             try {
@@ -267,12 +238,12 @@ class TRanimaci : MainAPI() {
             } catch (_: Exception) {}
         }
 
-        // HTML Episode parsing
+        // 2. HTML episodes
         if (episodes.isEmpty()) {
-            document.select("div.episodes a, ul.episodes-list a, a[href*='/video/'], a[href*='/bolum/'], a[href*='-bolum']").forEach { a ->
+            document.select("div.episodes a, ul.episodes-list a, a[href*='/video/'], a[href*='/bolum/'], a[href*='bolum'], a[href*='episode']").forEach { a ->
                 val epHref = fixUrlNull(a.attr("href")) ?: return@forEach
                 val epText = a.text().trim().ifBlank { a.attr("title") }
-                val epNum = Regex("""(\d+)\.\s*[Bb]ölüm|(\d+)\s*[Bb]ölüm|bolum-(\d+)|episode-(\d+)""", RegexOption.IGNORE_CASE)
+                val epNum = Regex("""(?:bölüm|bolum|episode)\s*[-.:]?\s*(\d+)|(\d+)\.\s*(?:bölüm|bolum)|bolum-(\d+)|episode-(\d+)""", RegexOption.IGNORE_CASE)
                     .find("$epHref $epText")?.let { m ->
                         m.groupValues.drop(1).firstOrNull { it.isNotBlank() }?.toIntOrNull()
                     }
@@ -310,23 +281,10 @@ class TRanimaci : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val fixedData = fixUrl(data)
-        val res = try {
-            app.get(
-                fixedData,
-                headers = mapOf(
-                    "User-Agent" to USER_AGENT,
-                    "Referer" to "$mainUrl/"
-                ),
-                interceptor = interceptor
-            )
-        } catch (_: Exception) {
-            return false
-        }
-
-        val document = res.document
+        val document = safeGet(fixedData) ?: return false
         var hasFound = false
 
-        // 1. Check iframes
+        // 1. Iframes
         val iframes = document.select("iframe").mapNotNull {
             val src = it.attr("src").ifBlank { it.attr("data-src") }
             if (src.isNotBlank()) src else null
@@ -339,14 +297,16 @@ class TRanimaci : MainAPI() {
             }
         }
 
-        // 2. Direct video sources
-        val videoSources = document.select("video source").mapNotNull { it.attr("src") }
+        // 2. Video elements
+        val videoSources = document.select("video source, video").mapNotNull {
+            it.attr("src").takeIf { s -> s.isNotBlank() }
+        }
         for (vSrc in videoSources) {
             val fixed = fixUrl(vSrc)
             callback.invoke(
                 newExtractorLink(
                     source = name,
-                    name = "TRanimeci Stream",
+                    name = "TRanimeci Direct",
                     url = fixed,
                     type = if (fixed.contains(".m3u8")) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
                 ) {
@@ -356,7 +316,7 @@ class TRanimaci : MainAPI() {
             hasFound = true
         }
 
-        // 3. Fallback: try extractor on the data page itself
+        // 3. Fallback
         if (!hasFound) {
             hasFound = loadExtractor(fixedData, "$mainUrl/", subtitleCallback, callback)
         }
