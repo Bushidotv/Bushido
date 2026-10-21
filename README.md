@@ -1,4 +1,4 @@
-<div align="center">
+﻿<div align="center">
 
 # 🥊 Bushido CloudStream Eklentisi
 
@@ -20,7 +20,6 @@ Bu depo, her biri **ayrı kurulan** CloudStream eklentilerinden oluşur:
 | Eklenti | İçerik |
 |---|---|
 | **Bushido Spor** | 📺 Canlı spor ve TV yayınları |
-| **Famelack** | 🌍 Tüm dünya TV kanalları (170+ ülke, 6.800+ canlı yayın) |
 | **HDFilmCehennemi** | 🎬 Film ve dizi arşivi |
 | **DiziPalHub** | 📺 Diziler ve filmler (hazır `.cs3` olarak yayınlanır) |
 | **DiziMom** | 📺 Diziler (hazır `.cs3` olarak yayınlanır) |
