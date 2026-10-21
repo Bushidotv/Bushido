@@ -1,4 +1,4 @@
-﻿<div align="center">
+<div align="center">
 
 # 🥊 Bushido CloudStream Eklentisi
 
@@ -21,6 +21,7 @@ Bu depo, her biri **ayrı kurulan** CloudStream eklentilerinden oluşur:
 |---|---|
 | **Bushido Spor** | 📺 Canlı spor ve TV yayınları |
 | **HDFilmCehennemi** | 🎬 Film ve dizi arşivi |
+| **TRanimeci** | ⛩️ Türkçe anime arşivi ve güncel bölümler |
 | **DiziPalHub** | 📺 Diziler ve filmler (hazır `.cs3` olarak yayınlanır) |
 | **DiziMom** | 📺 Diziler (hazır `.cs3` olarak yayınlanır) |
 | **BelgeselX** | 🌍 Belgeseller (hazır `.cs3` olarak yayınlanır) |
