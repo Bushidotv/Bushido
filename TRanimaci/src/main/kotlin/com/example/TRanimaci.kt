@@ -5,6 +5,7 @@ import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.network.CloudflareKiller
 import com.lagradost.cloudstream3.utils.*
 import org.json.JSONObject
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
 class TRanimaci : MainAPI() {
@@ -18,11 +19,6 @@ class TRanimaci : MainAPI() {
     override var sequentialMainPage            = true
     override var sequentialMainPageDelay       = 300L
     override var sequentialMainPageScrollDelay = 300L
-
-    companion object {
-        private const val USER_AGENT =
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    }
 
     private val cloudflareKiller by lazy { CloudflareKiller() }
 
@@ -41,6 +37,32 @@ class TRanimaci : MainAPI() {
         "${mainUrl}/en/kategori/bilim-kurgu-anime" to "Bilim Kurgu"
     )
 
+    private suspend fun fetchPage(url: String): Document? {
+        // 1. Try standard request with CloudflareKiller
+        val doc = try {
+            app.get(
+                url,
+                headers = mapOf("Referer" to "$mainUrl/"),
+                interceptor = cloudflareKiller
+            ).document
+        } catch (e: Exception) {
+            null
+        }
+
+        // Check if doc is valid and not Cloudflare challenge page
+        if (doc != null && !doc.html().contains("Just a moment") && (doc.select("a, script#__NEXT_DATA__").isNotEmpty())) {
+            return doc
+        }
+
+        // 2. Headless WebView fallback if Cloudflare blocked OkHttp
+        val context = TRanimaciPlugin.pluginContext
+        if (context != null) {
+            return TRanimaciWebViewHelper.fetchDocument(url, context)
+        }
+
+        return doc
+    }
+
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val baseUrl = request.data
         val url = if (page > 1) {
@@ -49,18 +71,7 @@ class TRanimaci : MainAPI() {
             baseUrl
         }
 
-        val document = try {
-            app.get(
-                url,
-                headers = mapOf(
-                    "User-Agent" to USER_AGENT,
-                    "Referer" to "$mainUrl/"
-                ),
-                interceptor = cloudflareKiller
-            ).document
-        } catch (e: Exception) {
-            null
-        } ?: return newHomePageResponse(request.name, emptyList())
+        val document = fetchPage(url) ?: return newHomePageResponse(request.name, emptyList())
 
         // 1. Try extracting animes from standard <a> links
         val home = document.select("a").mapNotNull { it.toMainPageResult() }
@@ -116,9 +127,7 @@ class TRanimaci : MainAPI() {
                           href.contains("/series/") || href.contains("/video/")
         if (!isAnimeLink) return null
 
-        // 1. Image inside this <a>
         var imgEl = this.selectFirst("img")
-        // 2. Image in parent or container
         if (imgEl == null) {
             imgEl = this.parent()?.selectFirst("img")
         }
@@ -146,7 +155,6 @@ class TRanimaci : MainAPI() {
             title = this.attr("title").trim()
         }
 
-        // Drop generic navigation words
         if (title.isBlank() || title.equals("anime", ignoreCase = true) ||
             title.equals("kategoriler", ignoreCase = true) || title.equals("giriş yap", ignoreCase = true)) {
             return null
@@ -163,18 +171,7 @@ class TRanimaci : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
         val url = "$mainUrl/en/arama?q=$query"
-        val document = try {
-            app.get(
-                url,
-                headers = mapOf(
-                    "User-Agent" to USER_AGENT,
-                    "Referer" to "$mainUrl/"
-                ),
-                interceptor = cloudflareKiller
-            ).document
-        } catch (e: Exception) {
-            null
-        } ?: return emptyList()
+        val document = fetchPage(url) ?: return emptyList()
 
         return document.select("a").mapNotNull { it.toMainPageResult() }.distinctBy { it.url }
     }
@@ -182,18 +179,7 @@ class TRanimaci : MainAPI() {
     override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
 
     override suspend fun load(url: String): LoadResponse? {
-        val document = try {
-            app.get(
-                url,
-                headers = mapOf(
-                    "User-Agent" to USER_AGENT,
-                    "Referer" to "$mainUrl/"
-                ),
-                interceptor = cloudflareKiller
-            ).document
-        } catch (e: Exception) {
-            return null
-        }
+        val document = fetchPage(url) ?: return null
 
         val title = document.selectFirst("h1, .entry-title")?.text()?.trim()
             ?: document.selectFirst("meta[property='og:title']")?.attr("content")?.substringBefore(" izle")?.trim()
@@ -260,38 +246,31 @@ class TRanimaci : MainAPI() {
 
         // 1. Direct iframes or embeds
         try {
-            val doc = app.get(
-                data,
-                headers = mapOf(
-                    "User-Agent" to USER_AGENT,
-                    "Referer" to "$mainUrl/"
-                ),
-                interceptor = cloudflareKiller
-            ).document
+            val doc = fetchPage(data)
+            if (doc != null) {
+                val iframes = doc.select("iframe").mapNotNull { it.attr("src") }
+                for (iframe in iframes) {
+                    val fullIframe = if (iframe.startsWith("//")) "https:$iframe" else iframe
+                    val handled = loadExtractor(fullIframe, data, subtitleCallback, callback)
+                    if (handled) found = true
+                }
 
-            val iframes = doc.select("iframe").mapNotNull { it.attr("src") }
-            for (iframe in iframes) {
-                val fullIframe = if (iframe.startsWith("//")) "https:$iframe" else iframe
-                val handled = loadExtractor(fullIframe, data, subtitleCallback, callback)
-                if (handled) found = true
-            }
-
-            // Check for direct video tags
-            val videoSrc = doc.selectFirst("video source")?.attr("src") ?: doc.selectFirst("video")?.attr("src")
-            if (!videoSrc.isNullOrBlank()) {
-                val fullVideo = if (videoSrc.startsWith("//")) "https:$videoSrc" else videoSrc
-                callback.invoke(
-                    newExtractorLink(
-                        source = this.name,
-                        name = "TRanimeci HD",
-                        url = fullVideo,
-                        type = if (fullVideo.contains(".m3u8")) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
-                    ) {
-                        this.headers = mapOf("Referer" to "$mainUrl/")
-                        this.quality = Qualities.P1080.value
-                    }
-                )
-                found = true
+                val videoSrc = doc.selectFirst("video source")?.attr("src") ?: doc.selectFirst("video")?.attr("src")
+                if (!videoSrc.isNullOrBlank()) {
+                    val fullVideo = if (videoSrc.startsWith("//")) "https:$videoSrc" else videoSrc
+                    callback.invoke(
+                        newExtractorLink(
+                            source = this.name,
+                            name = "TRanimeci HD",
+                            url = fullVideo,
+                            type = if (fullVideo.contains(".m3u8")) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
+                        ) {
+                            this.headers = mapOf("Referer" to "$mainUrl/")
+                            this.quality = Qualities.P1080.value
+                        }
+                    )
+                    found = true
+                }
             }
         } catch (e: Exception) {
             // Ignore error and proceed to WebView extractor
