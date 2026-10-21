@@ -1,8 +1,8 @@
 // Sürüm numarasını tam sayı (Integer) olarak belirtiyoruz
-version = 1
+version = 2
 
 cloudstream {
-    description = "Famelack - Ulusal, haber, müzik, çocuk ve yerel TV kanalları"
+    description = "Famelack - Tüm dünya TV kanalları (170+ ülke, 6.800+ kanal)"
     authors = listOf("Bushido")
 
     /**

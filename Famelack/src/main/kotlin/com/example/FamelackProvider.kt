@@ -19,14 +19,152 @@ class FamelackProvider : MainAPI() {
     override val supportedTypes = setOf(TvType.Live)
 
     override val mainPage = mainPageOf(
-        Pair("tr_ulusal", "Ulusal Kanallar"),
-        Pair("tr_haber", "Haber Kanalları"),
-        Pair("tr_muzik", "Müzik & Gençlik"),
-        Pair("tr_cocuk", "Çocuk Kanalları"),
-        Pair("tr_yerel", "Yerel & Bölgesel Kanallar"),
-        Pair("tr_tum", "Tüm Türkiye Kanalları"),
-        Pair("az_tum", "Azerbaycan Kanalları"),
-        Pair("dunya_belgesel", "Dünya Belgesel Kanalları")
+        // --- TÜRKİYE KANALLARI ---
+        Pair("tr_ulusal", "🇹🇷 Türkiye: Ulusal Kanallar"),
+        Pair("tr_haber", "🇹🇷 Türkiye: Haber Kanalları"),
+        Pair("tr_muzik", "🇹🇷 Türkiye: Müzik & Gençlik"),
+        Pair("tr_cocuk", "🇹🇷 Türkiye: Çocuk Kanalları"),
+        Pair("tr_yerel", "🇹🇷 Türkiye: Yerel & Bölgesel"),
+        Pair("tr_tum", "🇹🇷 Türkiye: Tüm Kanallar (165+)"),
+
+        // --- DÜNYA TEMATİK KATEGORİLERİ ---
+        Pair("cat_movies", "🎬 Dünya: Film & Sinema"),
+        Pair("cat_series", "📺 Dünya: Diziler"),
+        Pair("cat_news", "📰 Dünya: Haber"),
+        Pair("cat_documentary", "🌍 Dünya: Belgesel"),
+        Pair("cat_music", "🎵 Dünya: Müzik"),
+        Pair("cat_kids", "👶 Dünya: Çocuk & Animasyon"),
+        Pair("cat_entertainment", "🎭 Dünya: Eğlence & Şov"),
+        Pair("cat_sports", "⚽ Dünya: Spor"),
+        Pair("cat_animation", "🎨 Dünya: Animasyon"),
+        Pair("cat_comedy", "😂 Dünya: Komedi"),
+        Pair("cat_culture", "🏛️ Dünya: Kültür & Sanat"),
+        Pair("cat_science", "🔬 Dünya: Bilim & Doğa"),
+
+        // --- POPÜLER DÜNYA ÜLKELERİ ---
+        Pair("country_az", "🇦🇿 Azerbaycan (16)"),
+        Pair("country_de", "🇩🇪 Almanya (166)"),
+        Pair("country_us", "🇺🇸 Amerika Birleşik Devletleri (1435)"),
+        Pair("country_uk", "🇬🇧 Birleşik Krallık (219)"),
+        Pair("country_fr", "🇫🇷 Fransa (147)"),
+        Pair("country_it", "🇮🇹 İtalya (188)"),
+        Pair("country_es", "🇪🇸 İspanya (152)"),
+        Pair("country_ru", "🇷🇺 Rusya (238)"),
+        Pair("country_nl", "🇳🇱 Hollanda (105)"),
+        Pair("country_ca", "🇨🇦 Kanada (159)"),
+        Pair("country_br", "🇧🇷 Brezilya (131)"),
+        Pair("country_ar", "🇦🇷 Arjantin (150)"),
+        Pair("country_cl", "🇨🇱 Şili (189)"),
+        Pair("country_mx", "🇲🇽 Meksika (113)"),
+        Pair("country_in", "🇮🇳 Hindistan (599)"),
+        Pair("country_jp", "🇯🇵 Japonya (30)"),
+        Pair("country_kr", "🇰🇷 Güney Kore (70)"),
+        Pair("country_gr", "🇬🇷 Yunanistan (52)"),
+        Pair("country_ua", "🇺🇦 Ukrayna (65)"),
+        Pair("country_pl", "🇵🇱 Polonya (69)"),
+        Pair("country_ro", "🇷🇴 Romanya (93)"),
+        Pair("country_be", "🇧🇪 Belçika (20)"),
+        Pair("country_at", "🇦🇹 Avusturya (36)"),
+        Pair("country_ch", "🇨🇭 İsviçre (18)"),
+        Pair("country_se", "🇸🇪 İsveç (13)"),
+        Pair("country_no", "🇳🇴 Norveç (16)"),
+        Pair("country_pt", "🇵🇹 Portekiz (44)"),
+        Pair("country_au", "🇦🇺 Avustralya (52)"),
+        Pair("country_ge", "🇬🇪 Gürcistan (20)"),
+        Pair("country_kz", "🇰🇿 Kazakistan (42)"),
+        Pair("country_uz", "🇺🇿 Özbekistan (35)"),
+
+        // --- TÜM DİĞER ÜLKELER (A-Z) ---
+        Pair("country_af", "Afganistan (14)"),
+        Pair("country_al", "Arnavutluk (8)"),
+        Pair("country_dz", "Cezayir (3)"),
+        Pair("country_ad", "Andorra (2)"),
+        Pair("country_ao", "Angola (3)"),
+        Pair("country_am", "Ermenistan (5)"),
+        Pair("country_aw", "Aruba (9)"),
+        Pair("country_bs", "Bahamalar (2)"),
+        Pair("country_bh", "Bahreyn (5)"),
+        Pair("country_bd", "Bangladeş (22)"),
+        Pair("country_by", "Belarus (14)"),
+        Pair("country_bz", "Belize (1)"),
+        Pair("country_bj", "Benin (6)"),
+        Pair("country_bo", "Bolivya (49)"),
+        Pair("country_ba", "Bosna Hersek (6)"),
+        Pair("country_bg", "Bulgaristan (18)"),
+        Pair("country_kh", "Kamboçya (9)"),
+        Pair("country_cm", "Kamerun (9)"),
+        Pair("country_co", "Kolombiya (77)"),
+        Pair("country_cr", "Kosta Rika (53)"),
+        Pair("country_hr", "Hırvatistan (22)"),
+        Pair("country_cu", "Küba (11)"),
+        Pair("country_cy", "Kıbrıs (10)"),
+        Pair("country_cz", "Çekya (34)"),
+        Pair("country_dk", "Danimarka (11)"),
+        Pair("country_do", "Dominik Cumhuriyeti (169)"),
+        Pair("country_ec", "Ekvador (36)"),
+        Pair("country_eg", "Mısır (24)"),
+        Pair("country_sv", "El Salvador (16)"),
+        Pair("country_ee", "Estonya (4)"),
+        Pair("country_fi", "Finlandiya (8)"),
+        Pair("country_gh", "Gana (20)"),
+        Pair("country_gt", "Guatemala (24)"),
+        Pair("country_hn", "Honduras (32)"),
+        Pair("country_hk", "Hong Kong (11)"),
+        Pair("country_hu", "Macaristan (15)"),
+        Pair("country_is", "İzlanda (4)"),
+        Pair("country_id", "Endonezya (108)"),
+        Pair("country_ir", "İran (62)"),
+        Pair("country_iq", "Irak (21)"),
+        Pair("country_ie", "İrlanda (11)"),
+        Pair("country_il", "İsrail (17)"),
+        Pair("country_jm", "Jamaika (6)"),
+        Pair("country_jo", "Ürdün (12)"),
+        Pair("country_ke", "Kenya (33)"),
+        Pair("country_xk", "Kosova (5)"),
+        Pair("country_kw", "Kuveyt (7)"),
+        Pair("country_lv", "Letonya (16)"),
+        Pair("country_lb", "Lübnan (13)"),
+        Pair("country_ly", "Libya (11)"),
+        Pair("country_lt", "Litvanya (8)"),
+        Pair("country_lu", "Lüksemburg (5)"),
+        Pair("country_my", "Malezya (21)"),
+        Pair("country_mt", "Malta (9)"),
+        Pair("country_md", "Moldova (24)"),
+        Pair("country_mc", "Monako (3)"),
+        Pair("country_mn", "Moğolistan (23)"),
+        Pair("country_me", "Karadağ (9)"),
+        Pair("country_ma", "Fas (12)"),
+        Pair("country_np", "Nepal (12)"),
+        Pair("country_nz", "Yeni Zelanda (15)"),
+        Pair("country_ni", "Nikaragua (16)"),
+        Pair("country_ng", "Nijerya (30)"),
+        Pair("country_mk", "Kuzey Makedonya (17)"),
+        Pair("country_om", "Umman (3)"),
+        Pair("country_pk", "Pakistan (57)"),
+        Pair("country_ps", "Filistin (6)"),
+        Pair("country_pa", "Panama (19)"),
+        Pair("country_py", "Paraguay (12)"),
+        Pair("country_pe", "Peru (94)"),
+        Pair("country_ph", "Filipinler (36)"),
+        Pair("country_pr", "Porto Riko (16)"),
+        Pair("country_qa", "Katar (9)"),
+        Pair("country_sm", "San Marino (3)"),
+        Pair("country_sa", "Suudi Arabistan (23)"),
+        Pair("country_sn", "Senegal (17)"),
+        Pair("country_rs", "Sırbistan (26)"),
+        Pair("country_sg", "Singapur (10)"),
+        Pair("country_sk", "Slovakya (31)"),
+        Pair("country_si", "Slovenya (16)"),
+        Pair("country_so", "Somali (13)"),
+        Pair("country_za", "Güney Afrika (20)"),
+        Pair("country_tw", "Tayvan (35)"),
+        Pair("country_th", "Tayland (51)"),
+        Pair("country_tn", "Tunus (4)"),
+        Pair("country_ae", "Birleşik Arap Emirlikleri (31)"),
+        Pair("country_uy", "Uruguay (2)"),
+        Pair("country_ve", "Venezuela (49)"),
+        Pair("country_vn", "Vietnam (47)"),
+        Pair("country_ye", "Yemen (3)")
     )
 
     data class ChannelItem(
@@ -42,23 +180,16 @@ class FamelackProvider : MainAPI() {
         private const val USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-        private const val TR_DATA_URL =
-            "https://raw.githubusercontent.com/famelack/famelack-data/main/tv/compressed/countries/tr.json"
-
-        private const val AZ_DATA_URL =
-            "https://raw.githubusercontent.com/famelack/famelack-data/main/tv/compressed/countries/az.json"
-
-        private const val DOC_DATA_URL =
-            "https://raw.githubusercontent.com/famelack/famelack-data/main/tv/compressed/categories/documentary.json"
+        private const val BASE_DATA_URL =
+            "https://raw.githubusercontent.com/famelack/famelack-data/main/tv/compressed"
 
         private const val DEFAULT_ICON =
             "https://raw.githubusercontent.com/Bushidotv/Bushido/master/icon.png"
 
-        // In-memory cache
+        private val countryCache = mutableMapOf<String, List<ChannelItem>>()
+        private val categoryCache = mutableMapOf<String, List<ChannelItem>>()
         private val channelCache = mutableMapOf<String, ChannelItem>()
-        private var trChannelsCache: List<ChannelItem>? = null
-        private var azChannelsCache: List<ChannelItem>? = null
-        private var docChannelsCache: List<ChannelItem>? = null
+        private var allChannelsCache: List<ChannelItem>? = null
 
         fun getChannelLogo(name: String): String {
             val lower = name.lowercase().trim()
@@ -88,8 +219,6 @@ class FamelackProvider : MainAPI() {
                 lower == "diyanet tv" -> "https://upload.wikimedia.org/wikipedia/tr/thumb/4/47/Diyanet_TV_logosu.png/320px-Diyanet_TV_logosu.png"
                 lower == "24 tv" -> "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/24_TV_logosu.svg/320px-24_TV_logosu.svg.png"
                 lower == "360" -> "https://upload.wikimedia.org/wikipedia/commons/thumb/9/90/360_logosu.svg/320px-360_logosu.svg.png"
-                "power" in lower -> "https://raw.githubusercontent.com/Bushidotv/Bushido/master/icon.png"
-                "number 1" in lower || "nr1" in lower -> "https://raw.githubusercontent.com/Bushidotv/Bushido/master/icon.png"
                 "minika" in lower -> "https://upload.wikimedia.org/wikipedia/tr/thumb/2/25/Minika_%C3%87ocuk_logosu.png/320px-Minika_%C3%87ocuk_logosu.png"
                 else -> DEFAULT_ICON
             }
@@ -124,7 +253,7 @@ class FamelackProvider : MainAPI() {
                 if (streamsArr != null) {
                     for (j in 0 until streamsArr.length()) {
                         val s = streamsArr.getString(j).trim()
-                        // Filter out dead/pirate streams
+                        // Filter out dead/broken pirate links
                         if (s.isNotEmpty() && !s.contains("mangeinde4") && !s.contains(".lat/") && !s.endsWith(".lat")) {
                             streams.add(s)
                         }
@@ -142,7 +271,6 @@ class FamelackProvider : MainAPI() {
                 }
             }
 
-            // Only add channels that have at least one valid stream or youtube link
             if (streams.isNotEmpty() || youtube.isNotEmpty()) {
                 val logo = getChannelLogo(name)
                 val item = ChannelItem(
@@ -161,50 +289,63 @@ class FamelackProvider : MainAPI() {
         return list
     }
 
-    private suspend fun getTrChannels(): List<ChannelItem> {
-        val cached = trChannelsCache
+    private suspend fun getChannelsByCountry(code: String): List<ChannelItem> {
+        val lowerCode = code.lowercase().trim()
+        val cached = countryCache[lowerCode]
         if (cached != null) return cached
         return try {
-            val json = fetchDecompressedJson(TR_DATA_URL)
+            val url = "$BASE_DATA_URL/countries/$lowerCode.json"
+            val json = fetchDecompressedJson(url)
             val channels = parseChannelsJson(json)
-            trChannelsCache = channels
+            countryCache[lowerCode] = channels
             channels
         } catch (e: Exception) {
             emptyList()
         }
     }
 
-    private suspend fun getAzChannels(): List<ChannelItem> {
-        val cached = azChannelsCache
+    private suspend fun getChannelsByCategory(category: String): List<ChannelItem> {
+        val lowerCat = category.lowercase().trim()
+        val cached = categoryCache[lowerCat]
         if (cached != null) return cached
         return try {
-            val json = fetchDecompressedJson(AZ_DATA_URL)
+            val url = "$BASE_DATA_URL/categories/$lowerCat.json"
+            val json = fetchDecompressedJson(url)
             val channels = parseChannelsJson(json)
-            azChannelsCache = channels
+            categoryCache[lowerCat] = channels
             channels
         } catch (e: Exception) {
             emptyList()
         }
     }
 
-    private suspend fun getDocChannels(): List<ChannelItem> {
-        val cached = docChannelsCache
+    private suspend fun getAllWorldChannels(): List<ChannelItem> {
+        val cached = allChannelsCache
         if (cached != null) return cached
         return try {
-            val json = fetchDecompressedJson(DOC_DATA_URL)
+            val url = "$BASE_DATA_URL/categories/all.json"
+            val json = fetchDecompressedJson(url)
             val channels = parseChannelsJson(json)
-            docChannelsCache = channels
+            allChannelsCache = channels
             channels
         } catch (e: Exception) {
-            emptyList()
+            countryCache["tr"] ?: emptyList()
         }
     }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val category = request.data
-        val items = when (category) {
-            "tr_ulusal" -> {
-                val all = getTrChannels()
+        val data = request.data
+        val items = when {
+            data.startsWith("country_") -> {
+                val code = data.removePrefix("country_")
+                getChannelsByCountry(code)
+            }
+            data.startsWith("cat_") -> {
+                val cat = data.removePrefix("cat_")
+                getChannelsByCategory(cat)
+            }
+            data == "tr_ulusal" -> {
+                val all = getChannelsByCountry("tr")
                 val nationalKeywords = listOf(
                     "trt 1", "trt 2", "atv", "a2", "360", "24 tv", "tv8", "tv 8", "tv 4", "tv4",
                     "show", "star", "kanal d", "beyaz tv", "now", "teve2", "flash", "cine 1", "bi kanal",
@@ -215,8 +356,8 @@ class FamelackProvider : MainAPI() {
                     nationalKeywords.any { lower.contains(it) }
                 }
             }
-            "tr_haber" -> {
-                val all = getTrChannels()
+            data == "tr_haber" -> {
+                val all = getChannelsByCountry("tr")
                 val newsKeywords = listOf(
                     "haber", "news", "cnn", "bloomberg", "ekoturk", "finans", "tbmm", "meclis",
                     "parlamento", "turkhaber", "benguturk", "halk tv", "tele1", "ekol tv",
@@ -227,8 +368,8 @@ class FamelackProvider : MainAPI() {
                     newsKeywords.any { lower.contains(it) }
                 }
             }
-            "tr_muzik" -> {
-                val all = getTrChannels()
+            data == "tr_muzik" -> {
+                val all = getChannelsByCountry("tr")
                 val musicKeywords = listOf(
                     "muzik", "müzik", "music", "power", "number 1", "kral", "nr1", "akustik",
                     "slow", "dance", "damar", "taptaze"
@@ -238,8 +379,8 @@ class FamelackProvider : MainAPI() {
                     musicKeywords.any { lower.contains(it) }
                 }
             }
-            "tr_cocuk" -> {
-                val all = getTrChannels()
+            data == "tr_cocuk" -> {
+                val all = getChannelsByCountry("tr")
                 val kidsKeywords = listOf(
                     "cocuk", "çocuk", "cartoon", "minika", "spacetoon", "zarok", "animasyon", "kral şakir"
                 )
@@ -248,8 +389,8 @@ class FamelackProvider : MainAPI() {
                     kidsKeywords.any { lower.contains(it) }
                 }
             }
-            "tr_yerel" -> {
-                val all = getTrChannels()
+            data == "tr_yerel" -> {
+                val all = getChannelsByCountry("tr")
                 val excludedKeywords = listOf(
                     "trt 1", "trt 2", "atv", "a2", "360", "24 tv", "tv8", "tv 8", "tv 4", "tv4",
                     "show", "star", "kanal d", "beyaz tv", "now", "teve2", "flash", "cine 1", "bi kanal",
@@ -266,10 +407,8 @@ class FamelackProvider : MainAPI() {
                     excludedKeywords.none { lower.contains(it) }
                 }
             }
-            "tr_tum" -> getTrChannels()
-            "az_tum" -> getAzChannels()
-            "dunya_belgesel" -> getDocChannels()
-            else -> getTrChannels()
+            data == "tr_tum" -> getChannelsByCountry("tr")
+            else -> getChannelsByCountry("tr")
         }
 
         val searchResponses = items.map { ch ->
@@ -287,12 +426,8 @@ class FamelackProvider : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
         val cleanQuery = query.lowercase().trim()
-        val allTr = getTrChannels()
-        val allAz = getAzChannels()
-        val allDoc = getDocChannels()
-
-        val combined = (allTr + allAz + allDoc).distinctBy { it.nanoid }
-        return combined.filter { it.name.lowercase().contains(cleanQuery) }.map { ch ->
+        val allChannels = getAllWorldChannels()
+        return allChannels.filter { it.name.lowercase().contains(cleanQuery) }.map { ch ->
             newLiveSearchResponse(
                 name = ch.name,
                 url = "famelack://${ch.country}/${ch.nanoid}",
@@ -305,12 +440,15 @@ class FamelackProvider : MainAPI() {
 
     override suspend fun load(url: String): LoadResponse {
         val nanoid = url.substringAfterLast("/")
+        val country = url.removePrefix("famelack://").substringBefore("/")
         val item = channelCache[nanoid] ?: run {
-            // If not found in cache, load TR/AZ channels and search
-            getTrChannels()
-            getAzChannels()
-            getDocChannels()
-            channelCache[nanoid]
+            if (country.isNotEmpty() && country != "famelack:") {
+                getChannelsByCountry(country)
+            }
+            channelCache[nanoid] ?: run {
+                getAllWorldChannels()
+                channelCache[nanoid]
+            }
         }
 
         val title = item?.name ?: nanoid
@@ -318,6 +456,7 @@ class FamelackProvider : MainAPI() {
         val plotText = buildString {
             append("Famelack 7/24 Canlı Yayın")
             if (item != null) {
+                if (item.country.isNotEmpty()) append(" • Ülke: ${item.country.uppercase()}")
                 if (item.streams.isNotEmpty()) append(" • ${item.streams.size} M3U8 Akışı")
                 if (item.youtube.isNotEmpty()) append(" • YouTube Canlı")
             }
