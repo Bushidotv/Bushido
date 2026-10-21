@@ -20,6 +20,7 @@ Bu depo, her biri **ayrı kurulan** CloudStream eklentilerinden oluşur:
 | Eklenti | İçerik |
 |---|---|
 | **Bushido Spor** | 📺 Canlı spor ve TV yayınları |
+| **Famelack** | 📡 Ulusal, haber, müzik, çocuk ve yerel TV kanalları |
 | **HDFilmCehennemi** | 🎬 Film ve dizi arşivi |
 | **DiziPalHub** | 📺 Diziler ve filmler (hazır `.cs3` olarak yayınlanır) |
 | **DiziMom** | 📺 Diziler (hazır `.cs3` olarak yayınlanır) |
