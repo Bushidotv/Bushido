@@ -404,20 +404,29 @@ class TRanimaci : MainAPI() {
         while (keys.hasNext()) {
             val key = keys.next()
             val value = node.opt(key)
-            if (value is JSONArray && key.contains("episode", ignoreCase = true) || key.contains("bolum", ignoreCase = true)) {
-                for (i in 0 until value.length()) {
-                    val item = value.optJSONObject(i) ?: continue
-                    val epNum = item.optInt("episode_number", item.optInt("number", i + 1))
-                    val epSlug = item.optString("slug").ifBlank { "$epNum" }
-                    val epTitle = item.optString("title").ifBlank { "Bölüm $epNum" }
-                    val epUrl = fixUrlNull("$mainUrl/en/video/$epSlug") ?: continue
-
-                    episodes.add(
-                        newEpisode(epUrl) {
-                            this.name = epTitle
-                            this.episode = epNum
+            if (value is JSONArray) {
+                val isEpisodeKey = key.contains("episode", ignoreCase = true) || key.contains("bolum", ignoreCase = true)
+                if (isEpisodeKey) {
+                    for (i in 0 until value.length()) {
+                        val item = value.optJSONObject(i) ?: continue
+                        val epNum: Int = if (item.has("episode_number")) {
+                            item.optInt("episode_number")
+                        } else if (item.has("number")) {
+                            item.optInt("number")
+                        } else {
+                            i + 1
                         }
-                    )
+                        val epSlug = item.optString("slug").ifBlank { "$epNum" }
+                        val epTitle = item.optString("title").ifBlank { "Bölüm $epNum" }
+                        val epUrl = fixUrlNull("$mainUrl/en/video/$epSlug") ?: continue
+
+                        episodes.add(
+                            newEpisode(epUrl) {
+                                this.name = epTitle
+                                this.episode = epNum
+                            }
+                        )
+                    }
                 }
             } else if (value is JSONObject) {
                 parseNextDataEpisodes(value, episodes)
