@@ -43,7 +43,7 @@ class TRanimaci : MainAPI() {
         "${mainUrl}/kategori/shounen-anime"        to "Shounen"
     )
 
-    private fun safeGet(url: String, referer: String = "$mainUrl/"): Document? {
+    private suspend fun safeGet(url: String, referer: String = "$mainUrl/"): Document? {
         return try {
             app.get(
                 url,
