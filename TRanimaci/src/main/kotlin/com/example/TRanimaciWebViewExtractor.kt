@@ -14,8 +14,8 @@ import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.INFER_TYPE
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.newExtractorLink
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -55,7 +55,7 @@ class TRanimaciWebViewExtractor(private val context: Context) : ExtractorApi() {
                             val type = if (isM3u8) INFER_TYPE else ExtractorLinkType.VIDEO
                             val qualityStr = if (reqUrl.contains("1080p")) Qualities.P1080.value else Qualities.P720.value
 
-                            GlobalScope.launch(Dispatchers.IO) {
+                            CoroutineScope(Dispatchers.IO).launch {
                                 callback.invoke(
                                     newExtractorLink(
                                         source = "TRanimaciWebView",
