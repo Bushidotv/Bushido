@@ -26,7 +26,6 @@ Bu depo, her biri **ayrı kurulan** CloudStream eklentilerinden oluşur:
 | **BelgeselX** | 🌍 Belgeseller (hazır `.cs3` olarak yayınlanır) |
 | **RecTV** | 🎬 Filmler, diziler ve canlı yayınlar (hazır `.cs3` olarak yayınlanır) |
 | **FullHDFilmizlesene** | 🎬 Filmler ve diziler (hazır `.cs3` olarak yayınlanır) |
-| **Sinewix** | 🎬 Filmler ve diziler (hazır `.cs3` olarak yayınlanır) |
 
 ---
 

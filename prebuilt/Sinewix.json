@@ -1,8 +1,0 @@
-{
-    "description": "Sinewix filmler ve diziler",
-    "authors": ["Bushido"],
-    "tvTypes": ["Movie", "TvSeries"],
-    "language": "tr",
-    "iconUrl": "https://raw.githubusercontent.com/Bushidotv/Bushido/master/icon.png",
-    "status": 1
-}
