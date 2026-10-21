@@ -11,7 +11,7 @@ import org.jsoup.nodes.Element
 
 class TRanimaci : MainAPI() {
     override var mainUrl              = "https://tranimaci.com"
-    override var name                 = "TrAnimeci"
+    override var name                 = "TRanimeci"
     override val hasMainPage          = true
     override var lang                 = "tr"
     override val hasQuickSearch       = true
@@ -20,6 +20,11 @@ class TRanimaci : MainAPI() {
     override var sequentialMainPage            = true
     override var sequentialMainPageDelay       = 500L
     override var sequentialMainPageScrollDelay = 500L
+
+    companion object {
+        private const val USER_AGENT =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
 
     private val cloudflareKiller by lazy { CloudflareKiller() }
     private val interceptor      by lazy { CloudflareInterceptor(cloudflareKiller) }
@@ -30,7 +35,7 @@ class TRanimaci : MainAPI() {
             val response = chain.proceed(request)
             val doc      = Jsoup.parse(response.peekBody(1024 * 1024).string())
 
-            if (doc.html().contains("Just a moment") || response.code == 403) {
+            if (doc.html().contains("Just a moment") || response.code == 403 || response.code == 503) {
                 return cloudflareKiller.intercept(chain)
             }
 
@@ -39,41 +44,69 @@ class TRanimaci : MainAPI() {
     }
 
     override val mainPage = mainPageOf(
-        "${mainUrl}/en/yeni"                  to "Yeni Bölümler",
-        "${mainUrl}/anime"                    to "Tüm Animeler",
-        "${mainUrl}/populer"                  to "Popüler",
-        "${mainUrl}/kategori/aksiyon-anime"   to "Aksiyon",
-        "${mainUrl}/kategori/macera-anime"    to "Macera",
-        "${mainUrl}/kategori/komedi-anime"    to "Komedi",
-        "${mainUrl}/kategori/harem-anime"     to "Harem",
-        "${mainUrl}/kategori/fantastik-anime" to "Fantastik",
-        "${mainUrl}/kategori/romantizm-anime" to "Romantizm",
-        "${mainUrl}/kategori/dram-anime"      to "Dram"
+        "${mainUrl}/en"                            to "Son Eklenenler",
+        "${mainUrl}/en/anime"                      to "Tüm Animeler",
+        "${mainUrl}/en/anime-filmleri"             to "Anime Filmleri",
+        "${mainUrl}/en/kategori/aksiyon-anime"     to "Aksiyon",
+        "${mainUrl}/en/kategori/macera-anime"      to "Macera",
+        "${mainUrl}/en/kategori/komedi-anime"      to "Komedi",
+        "${mainUrl}/en/kategori/fantastik-anime"   to "Fantastik",
+        "${mainUrl}/en/kategori/romantizm-anime"   to "Romantizm",
+        "${mainUrl}/en/kategori/dram-anime"        to "Dram",
+        "${mainUrl}/en/kategori/shounen-anime"     to "Shounen",
+        "${mainUrl}/en/kategori/seinen-anime"      to "Seinen",
+        "${mainUrl}/en/kategori/bilim-kurgu-anime" to "Bilim Kurgu"
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val url = request.data.replace("SAYFA", "$page")
-        val document = app.get(url, interceptor = interceptor).document
-        val home = document.select("a").mapNotNull { it.toMainPageResult() }
+        val baseUrl = request.data
+        val url = if (page > 1) {
+            if (baseUrl.contains("?")) "$baseUrl&page=$page" else "$baseUrl?page=$page"
+        } else {
+            baseUrl
+        }
 
+        val document = try {
+            app.get(
+                url,
+                headers = mapOf(
+                    "User-Agent" to USER_AGENT,
+                    "Referer" to "$mainUrl/"
+                ),
+                interceptor = interceptor
+            ).document
+        } catch (e: Exception) {
+            null
+        } ?: return newHomePageResponse(request.name, emptyList())
+
+        val home = document.select("a").mapNotNull { it.toMainPageResult() }
         val distinctHome = home.distinctBy { it.url }
+
         return newHomePageResponse(request.name, distinctHome, distinctHome.isNotEmpty())
     }
 
     private fun Element.toMainPageResult(): SearchResponse? {
-        val href = this.attr("href")
-        if (!href.startsWith("/anime/") && !href.startsWith("$mainUrl/anime/")) return null
+        val href = this.attr("href").trim()
+        val isAnimeLink = href.contains("/anime/") || href.contains("/anime-filmleri/") || href.contains("/series/")
+        if (!isAnimeLink) return null
+
         val imgEl = this.selectFirst("img") ?: return null
 
         var imgUrl = imgEl.attr("src")
         if (imgUrl.contains("/_next/image?url=")) {
-            imgUrl = java.net.URLDecoder.decode(imgUrl.substringAfter("url=").substringBefore("&"), "UTF-8")
+            imgUrl = try {
+                java.net.URLDecoder.decode(imgUrl.substringAfter("url=").substringBefore("&"), "UTF-8")
+            } catch (e: Exception) {
+                imgUrl
+            }
         }
         if (!imgUrl.startsWith("http")) {
             imgUrl = "$mainUrl$imgUrl"
         }
 
-        val title = imgEl.attr("alt")
+        val title = imgEl.attr("alt").ifBlank {
+            this.text().trim()
+        }
         if (title.isBlank()) return null
 
         val fullHref = if (href.startsWith("http")) href else "$mainUrl$href"
@@ -84,8 +117,19 @@ class TRanimaci : MainAPI() {
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
-        val url = "$mainUrl/arama?q=$query"
-        val document = app.get(url, interceptor = interceptor).document
+        val url = "$mainUrl/en/arama?q=$query"
+        val document = try {
+            app.get(
+                url,
+                headers = mapOf(
+                    "User-Agent" to USER_AGENT,
+                    "Referer" to "$mainUrl/"
+                ),
+                interceptor = interceptor
+            ).document
+        } catch (e: Exception) {
+            null
+        } ?: return emptyList()
 
         return document.select("a").mapNotNull { it.toMainPageResult() }.distinctBy { it.url }
     }
@@ -93,28 +137,44 @@ class TRanimaci : MainAPI() {
     override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
 
     override suspend fun load(url: String): LoadResponse? {
-        val document = app.get(url, interceptor = interceptor).document
+        val document = try {
+            app.get(
+                url,
+                headers = mapOf(
+                    "User-Agent" to USER_AGENT,
+                    "Referer" to "$mainUrl/"
+                ),
+                interceptor = interceptor
+            ).document
+        } catch (e: Exception) {
+            return null
+        }
 
-        val title = document.selectFirst("h1")?.text()?.trim() ?: return null
+        val title = document.selectFirst("h1, .entry-title")?.text()?.trim() ?: return null
 
-        var posterUrl = document.selectFirst("img[alt*='$title']")?.attr("src") ?: ""
+        var posterUrl = document.selectFirst("img[alt*='$title'], .infox img, img")?.attr("src") ?: ""
         if (posterUrl.contains("/_next/image?url=")) {
-            posterUrl = java.net.URLDecoder.decode(posterUrl.substringAfter("url=").substringBefore("&"), "UTF-8")
+            posterUrl = try {
+                java.net.URLDecoder.decode(posterUrl.substringAfter("url=").substringBefore("&"), "UTF-8")
+            } catch (e: Exception) {
+                posterUrl
+            }
         }
         if (posterUrl.isNotBlank() && !posterUrl.startsWith("http")) {
             posterUrl = "$mainUrl$posterUrl"
         }
 
         val plot = document.select("p").map { it.text().trim() }
-            .filter { it.length > 50 }
+            .filter { it.length > 30 }
             .maxByOrNull { it.length } ?: ""
 
         val episodes = mutableListOf<Episode>()
-        val episodeLinks = document.select("a[href*='/video/']")
+        val episodeLinks = document.select("a[href*='/video/'], a[href*='-bolum'], a[href*='/bolum/'], a.epl-title")
         val distinctLinks = episodeLinks.distinctBy { it.attr("href") }
 
         for (ep in distinctLinks) {
-            val epHref = ep.attr("href")
+            val epHref = ep.attr("href").trim()
+            if (epHref.isBlank()) continue
             val fullHref = if (epHref.startsWith("http")) epHref else "$mainUrl$epHref"
 
             val numFromUrl = Regex("""-(\d+)-bolum""").find(epHref)?.groupValues?.get(1)?.toIntOrNull()
@@ -123,8 +183,16 @@ class TRanimaci : MainAPI() {
             val epNum = numFromText ?: numFromUrl
 
             episodes.add(newEpisode(fullHref) {
-                this.name = ep.text().trim()
+                this.name = ep.text().trim().ifBlank { "Bölüm ${epNum ?: (episodes.size + 1)}" }
                 this.episode = epNum
+            })
+        }
+
+        // Single anime movie fallback
+        if (episodes.isEmpty()) {
+            episodes.add(newEpisode(url) {
+                this.name = title
+                this.episode = 1
             })
         }
 
@@ -144,7 +212,15 @@ class TRanimaci : MainAPI() {
 
         // 1. Check if the page has direct iframes or player embeds
         try {
-            val doc = app.get(data, interceptor = interceptor).document
+            val doc = app.get(
+                data,
+                headers = mapOf(
+                    "User-Agent" to USER_AGENT,
+                    "Referer" to "$mainUrl/"
+                ),
+                interceptor = interceptor
+            ).document
+
             val iframes = doc.select("iframe").mapNotNull { it.attr("src") }
             for (iframe in iframes) {
                 val fullIframe = if (iframe.startsWith("//")) "https:$iframe" else iframe
