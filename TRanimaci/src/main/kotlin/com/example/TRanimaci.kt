@@ -4,9 +4,7 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.network.CloudflareKiller
 import com.lagradost.cloudstream3.utils.*
-import okhttp3.Interceptor
-import okhttp3.Response
-import org.jsoup.Jsoup
+import org.json.JSONObject
 import org.jsoup.nodes.Element
 
 class TRanimaci : MainAPI() {
@@ -15,11 +13,11 @@ class TRanimaci : MainAPI() {
     override val hasMainPage          = true
     override var lang                 = "tr"
     override val hasQuickSearch       = true
-    override val supportedTypes       = setOf(TvType.Anime)
+    override val supportedTypes       = setOf(TvType.Anime, TvType.AnimeMovie, TvType.OVA, TvType.TvSeries, TvType.Movie)
 
     override var sequentialMainPage            = true
-    override var sequentialMainPageDelay       = 500L
-    override var sequentialMainPageScrollDelay = 500L
+    override var sequentialMainPageDelay       = 300L
+    override var sequentialMainPageScrollDelay = 300L
 
     companion object {
         private const val USER_AGENT =
@@ -27,21 +25,6 @@ class TRanimaci : MainAPI() {
     }
 
     private val cloudflareKiller by lazy { CloudflareKiller() }
-    private val interceptor      by lazy { CloudflareInterceptor(cloudflareKiller) }
-
-    class CloudflareInterceptor(private val cloudflareKiller: CloudflareKiller) : Interceptor {
-        override fun intercept(chain: Interceptor.Chain): Response {
-            val request  = chain.request()
-            val response = chain.proceed(request)
-            val doc      = Jsoup.parse(response.peekBody(1024 * 1024).string())
-
-            if (doc.html().contains("Just a moment") || response.code == 403 || response.code == 503) {
-                return cloudflareKiller.intercept(chain)
-            }
-
-            return response
-        }
-    }
 
     override val mainPage = mainPageOf(
         "${mainUrl}/en"                            to "Son Eklenenler",
@@ -73,26 +56,77 @@ class TRanimaci : MainAPI() {
                     "User-Agent" to USER_AGENT,
                     "Referer" to "$mainUrl/"
                 ),
-                interceptor = interceptor
+                interceptor = cloudflareKiller
             ).document
         } catch (e: Exception) {
             null
         } ?: return newHomePageResponse(request.name, emptyList())
 
+        // 1. Try extracting animes from standard <a> links
         val home = document.select("a").mapNotNull { it.toMainPageResult() }
         val distinctHome = home.distinctBy { it.url }
+
+        // 2. Next.js __NEXT_DATA__ JSON fallback if HTML links were empty
+        if (distinctHome.isEmpty()) {
+            val nextDataEl = document.selectFirst("script#__NEXT_DATA__")
+            if (nextDataEl != null) {
+                try {
+                    val jsonStr = nextDataEl.data()
+                    val json = JSONObject(jsonStr)
+                    val pageProps = json.optJSONObject("props")?.optJSONObject("pageProps")
+                    if (pageProps != null) {
+                        val fallbackList = mutableListOf<SearchResponse>()
+                        val keys = pageProps.keys()
+                        while (keys.hasNext()) {
+                            val key = keys.next()
+                            val arr = pageProps.optJSONArray(key) ?: continue
+                            for (i in 0 until arr.length()) {
+                                val item = arr.optJSONObject(i) ?: continue
+                                val name = item.optString("name").ifBlank { item.optString("title") }
+                                val slug = item.optString("slug").ifBlank { item.optString("id") }
+                                var poster = item.optString("poster").ifBlank {
+                                    item.optString("image").ifBlank { item.optString("cover") }
+                                }
+                                if (poster.isNotBlank() && !poster.startsWith("http")) poster = "$mainUrl$poster"
+
+                                if (name.isNotBlank() && slug.isNotBlank()) {
+                                    val animeUrl = "$mainUrl/en/anime/$slug"
+                                    fallbackList.add(newAnimeSearchResponse(name, animeUrl, TvType.Anime) {
+                                        if (poster.isNotBlank()) this.posterUrl = poster
+                                    })
+                                }
+                            }
+                        }
+                        if (fallbackList.isNotEmpty()) {
+                            return newHomePageResponse(request.name, fallbackList.distinctBy { it.url })
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Ignore JSON fallback error
+                }
+            }
+        }
 
         return newHomePageResponse(request.name, distinctHome, distinctHome.isNotEmpty())
     }
 
     private fun Element.toMainPageResult(): SearchResponse? {
         val href = this.attr("href").trim()
-        val isAnimeLink = href.contains("/anime/") || href.contains("/anime-filmleri/") || href.contains("/series/")
+        val isAnimeLink = href.contains("/anime/") || href.contains("/anime-filmleri/") ||
+                          href.contains("/series/") || href.contains("/video/")
         if (!isAnimeLink) return null
 
-        val imgEl = this.selectFirst("img") ?: return null
+        // 1. Image inside this <a>
+        var imgEl = this.selectFirst("img")
+        // 2. Image in parent or container
+        if (imgEl == null) {
+            imgEl = this.parent()?.selectFirst("img")
+        }
+        if (imgEl == null) {
+            imgEl = this.closest("div, article, li")?.selectFirst("img")
+        }
 
-        var imgUrl = imgEl.attr("src")
+        var imgUrl = imgEl?.attr("src") ?: imgEl?.attr("data-src") ?: ""
         if (imgUrl.contains("/_next/image?url=")) {
             imgUrl = try {
                 java.net.URLDecoder.decode(imgUrl.substringAfter("url=").substringBefore("&"), "UTF-8")
@@ -100,19 +134,30 @@ class TRanimaci : MainAPI() {
                 imgUrl
             }
         }
-        if (!imgUrl.startsWith("http")) {
+        if (imgUrl.isNotBlank() && !imgUrl.startsWith("http")) {
             imgUrl = "$mainUrl$imgUrl"
         }
 
-        val title = imgEl.attr("alt").ifBlank {
-            this.text().trim()
+        var title = imgEl?.attr("alt")?.trim() ?: ""
+        if (title.isBlank()) {
+            title = this.text().trim()
         }
-        if (title.isBlank()) return null
+        if (title.isBlank()) {
+            title = this.attr("title").trim()
+        }
+
+        // Drop generic navigation words
+        if (title.isBlank() || title.equals("anime", ignoreCase = true) ||
+            title.equals("kategoriler", ignoreCase = true) || title.equals("giriş yap", ignoreCase = true)) {
+            return null
+        }
 
         val fullHref = if (href.startsWith("http")) href else "$mainUrl$href"
 
         return newAnimeSearchResponse(title, fullHref, TvType.Anime) {
-            this.posterUrl = imgUrl
+            if (imgUrl.isNotBlank()) {
+                this.posterUrl = imgUrl
+            }
         }
     }
 
@@ -125,7 +170,7 @@ class TRanimaci : MainAPI() {
                     "User-Agent" to USER_AGENT,
                     "Referer" to "$mainUrl/"
                 ),
-                interceptor = interceptor
+                interceptor = cloudflareKiller
             ).document
         } catch (e: Exception) {
             null
@@ -144,15 +189,19 @@ class TRanimaci : MainAPI() {
                     "User-Agent" to USER_AGENT,
                     "Referer" to "$mainUrl/"
                 ),
-                interceptor = interceptor
+                interceptor = cloudflareKiller
             ).document
         } catch (e: Exception) {
             return null
         }
 
-        val title = document.selectFirst("h1, .entry-title")?.text()?.trim() ?: return null
+        val title = document.selectFirst("h1, .entry-title")?.text()?.trim()
+            ?: document.selectFirst("meta[property='og:title']")?.attr("content")?.substringBefore(" izle")?.trim()
+            ?: return null
 
-        var posterUrl = document.selectFirst("img[alt*='$title'], .infox img, img")?.attr("src") ?: ""
+        var posterUrl = document.selectFirst("meta[property='og:image']")?.attr("content")
+            ?: document.selectFirst("img[alt*='$title'], .infox img, img")?.attr("src") ?: ""
+
         if (posterUrl.contains("/_next/image?url=")) {
             posterUrl = try {
                 java.net.URLDecoder.decode(posterUrl.substringAfter("url=").substringBefore("&"), "UTF-8")
@@ -164,9 +213,8 @@ class TRanimaci : MainAPI() {
             posterUrl = "$mainUrl$posterUrl"
         }
 
-        val plot = document.select("p").map { it.text().trim() }
-            .filter { it.length > 30 }
-            .maxByOrNull { it.length } ?: ""
+        val plot = document.selectFirst("meta[property='og:description']")?.attr("content")
+            ?: document.select("p").map { it.text().trim() }.filter { it.length > 30 }.maxByOrNull { it.length } ?: ""
 
         val episodes = mutableListOf<Episode>()
         val episodeLinks = document.select("a[href*='/video/'], a[href*='-bolum'], a[href*='/bolum/'], a.epl-title")
@@ -210,7 +258,7 @@ class TRanimaci : MainAPI() {
     ): Boolean {
         var found = false
 
-        // 1. Check if the page has direct iframes or player embeds
+        // 1. Direct iframes or embeds
         try {
             val doc = app.get(
                 data,
@@ -218,7 +266,7 @@ class TRanimaci : MainAPI() {
                     "User-Agent" to USER_AGENT,
                     "Referer" to "$mainUrl/"
                 ),
-                interceptor = interceptor
+                interceptor = cloudflareKiller
             ).document
 
             val iframes = doc.select("iframe").mapNotNull { it.attr("src") }
@@ -226,6 +274,24 @@ class TRanimaci : MainAPI() {
                 val fullIframe = if (iframe.startsWith("//")) "https:$iframe" else iframe
                 val handled = loadExtractor(fullIframe, data, subtitleCallback, callback)
                 if (handled) found = true
+            }
+
+            // Check for direct video tags
+            val videoSrc = doc.selectFirst("video source")?.attr("src") ?: doc.selectFirst("video")?.attr("src")
+            if (!videoSrc.isNullOrBlank()) {
+                val fullVideo = if (videoSrc.startsWith("//")) "https:$videoSrc" else videoSrc
+                callback.invoke(
+                    newExtractorLink(
+                        source = this.name,
+                        name = "TRanimeci HD",
+                        url = fullVideo,
+                        type = if (fullVideo.contains(".m3u8")) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
+                    ) {
+                        this.headers = mapOf("Referer" to "$mainUrl/")
+                        this.quality = Qualities.P1080.value
+                    }
+                )
+                found = true
             }
         } catch (e: Exception) {
             // Ignore error and proceed to WebView extractor

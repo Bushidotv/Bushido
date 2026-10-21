@@ -2,21 +2,14 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 }
 
-version = 2
+version = 3
 
 cloudstream {
     authors     = listOf("Bushido")
     language    = "tr"
     description = "TRanimeci - Türkiye'nin Online Anime izleme sitesi"
 
-    /**
-     * Status int as the following:
-     * 0: Down
-     * 1: Ok
-     * 2: Slow
-     * 3: Beta only
-    **/
     status  = 1
-    tvTypes = listOf("Anime")
+    tvTypes = listOf("Anime", "TvSeries", "Movie")
     iconUrl = "https://www.google.com/s2/favicons?domain=tranimaci.com&sz=128"
 }
