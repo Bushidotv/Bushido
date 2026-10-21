@@ -2,7 +2,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 }
 
-version = 6
+version = 7
 
 cloudstream {
     authors     = listOf("Bushido")

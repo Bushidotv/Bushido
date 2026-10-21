@@ -9,11 +9,12 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import java.net.URLEncoder
 
 class TRanimaci : MainAPI() {
     companion object {
         private const val TAG = "TRanimaci"
-        private const val USER_AGENT =
+        private const val DEFAULT_USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
     }
 
@@ -32,10 +33,10 @@ class TRanimaci : MainAPI() {
 
     override val mainPage = mainPageOf(
         "${mainUrl}/"                              to "Ana Sayfa",
-        "${mainUrl}/en"                            to "Son Eklenenler",
-        "${mainUrl}/anime"                         to "Animeler",
-        "${mainUrl}/en/anime"                      to "Tüm Animeler",
+        "${mainUrl}/animeler"                      to "Animeler",
         "${mainUrl}/anime-filmleri"                to "Anime Filmleri",
+        "${mainUrl}/en"                            to "Son Eklenenler",
+        "${mainUrl}/en/anime"                      to "Tüm Animeler",
         "${mainUrl}/kategori/aksiyon-anime"        to "Aksiyon",
         "${mainUrl}/kategori/komedi-anime"         to "Komedi",
         "${mainUrl}/kategori/fantastik-anime"      to "Fantastik",
@@ -44,18 +45,47 @@ class TRanimaci : MainAPI() {
     )
 
     private suspend fun safeGet(url: String, referer: String = "$mainUrl/"): Document? {
+        val context = TRanimaciPlugin.pluginContext
+
+        // 1. Initial clearance check via non-blocking WebView suspension if needed
+        if (TRanimaciCloudflare.clearanceCookie.isNullOrBlank() && context != null) {
+            TRanimaciCloudflare.resolveClearance(context, "$mainUrl/")
+        }
+
+        val ua = TRanimaciCloudflare.userAgent ?: DEFAULT_USER_AGENT
+        val cookie = TRanimaciCloudflare.clearanceCookie
+
+        val headers = mutableMapOf(
+            "User-Agent" to ua,
+            "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Referer" to referer
+        )
+        if (!cookie.isNullOrBlank()) {
+            headers["Cookie"] = cookie
+        }
+
         return try {
-            app.get(
+            val res = app.get(
                 url,
-                headers = mapOf(
-                    "User-Agent" to USER_AGENT,
-                    "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                    "Referer" to referer
-                ),
+                headers = headers,
                 interceptor = cloudflareKiller
-            ).document
+            )
+
+            // 2. If challenge page detected, re-resolve clearance once
+            if (res.text.contains("Just a moment") && context != null) {
+                TRanimaciCloudflare.clearanceCookie = null
+                val newCookie = TRanimaciCloudflare.resolveClearance(context, url)
+                if (!newCookie.isNullOrBlank()) {
+                    headers["Cookie"] = newCookie
+                    app.get(url, headers = headers, interceptor = cloudflareKiller).document
+                } else {
+                    res.document
+                }
+            } else {
+                res.document
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "Request failed for $url: ${e.message}")
+            Log.e(TAG, "safeGet error for $url: ${e.message}")
             null
         }
     }
@@ -87,7 +117,6 @@ class TRanimaci : MainAPI() {
 
         // 2. HTML Scraper (DiziPal Card & Anchor pattern)
         if (home.isEmpty()) {
-            // Find all anchor links to anime or episodes
             val elements = document.select(
                 "ul.content-grid > li, div.content-grid > div, div.grid > div, article, " +
                 "div.anime-card, div.card, a[href*='/anime/'], a[href*='/series/'], a[href*='/video/'], a[href*='bolum']"
@@ -142,7 +171,6 @@ class TRanimaci : MainAPI() {
         } else if (!altTitle.isNullOrBlank()) {
             altTitle
         } else {
-            // Slug fallback (e.g. /anime/naruto-shippuuden -> Naruto shippuuden)
             href.trimEnd('/').substringAfterLast('/')
                 .replace('-', ' ')
                 .replace('_', ' ')
@@ -172,8 +200,9 @@ class TRanimaci : MainAPI() {
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
-        val searchUrl = "$mainUrl/en/ara?q=$query"
-        val document = safeGet(searchUrl) ?: safeGet("$mainUrl/ara?q=$query") ?: return emptyList()
+        val encoded = URLEncoder.encode(query, "UTF-8")
+        val searchUrl = "$mainUrl/ara?q=$encoded"
+        val document = safeGet(searchUrl) ?: safeGet("$mainUrl/en/ara?q=$encoded") ?: return emptyList()
         val results = mutableListOf<SearchResponse>()
 
         val nextDataScript = document.selectFirst("script#__NEXT_DATA__")?.data()
@@ -284,7 +313,26 @@ class TRanimaci : MainAPI() {
         val document = safeGet(fixedData) ?: return false
         var hasFound = false
 
-        // 1. Iframes
+        // 1. Next.js player/iframe parsing from __NEXT_DATA__
+        val nextDataScript = document.selectFirst("script#__NEXT_DATA__")?.data()
+        if (!nextDataScript.isNullOrBlank()) {
+            try {
+                val json = JSONObject(nextDataScript)
+                val pageProps = json.optJSONObject("props")?.optJSONObject("pageProps")
+                if (pageProps != null) {
+                    val candidateLinks = mutableListOf<String>()
+                    extractNextDataPlayerUrls(pageProps, candidateLinks)
+                    for (link in candidateLinks) {
+                        val fixedLink = fixUrl(link)
+                        if (loadExtractor(fixedLink, fixedData, subtitleCallback, callback)) {
+                            hasFound = true
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        // 2. DOM Iframes
         val iframes = document.select("iframe").mapNotNull {
             val src = it.attr("src").ifBlank { it.attr("data-src") }
             if (src.isNotBlank()) src else null
@@ -297,7 +345,7 @@ class TRanimaci : MainAPI() {
             }
         }
 
-        // 2. Video elements
+        // 3. Direct video elements
         val videoSources = document.select("video source, video").mapNotNull {
             it.attr("src").takeIf { s -> s.isNotBlank() }
         }
@@ -316,12 +364,41 @@ class TRanimaci : MainAPI() {
             hasFound = true
         }
 
-        // 3. Fallback
+        // 4. Fallback on data page itself
         if (!hasFound) {
             hasFound = loadExtractor(fixedData, "$mainUrl/", subtitleCallback, callback)
         }
 
         return hasFound
+    }
+
+    private fun extractNextDataPlayerUrls(node: JSONObject, links: MutableList<String>) {
+        val keys = node.keys()
+        while (keys.hasNext()) {
+            val key = keys.next()
+            val value = node.opt(key)
+            if (value is String) {
+                if (key.contains("iframe", ignoreCase = true) ||
+                    key.contains("player", ignoreCase = true) ||
+                    key.contains("video", ignoreCase = true) ||
+                    key.contains("stream", ignoreCase = true) ||
+                    key.contains("embed", ignoreCase = true)
+                ) {
+                    if (value.startsWith("http") || value.startsWith("//")) {
+                        links.add(value)
+                    }
+                }
+            } else if (value is JSONObject) {
+                extractNextDataPlayerUrls(value, links)
+            } else if (value is JSONArray) {
+                for (i in 0 until value.length()) {
+                    val item = value.optJSONObject(i)
+                    if (item != null) {
+                        extractNextDataPlayerUrls(item, links)
+                    }
+                }
+            }
+        }
     }
 
     private fun parseNextDataItems(node: JSONObject, results: MutableList<SearchResponse>) {
@@ -345,7 +422,9 @@ class TRanimaci : MainAPI() {
                                 item.optString("cover")
                             }
                         }
-                        val cleanHref = fixUrlNull("$mainUrl/en/anime/$slug") ?: continue
+                        val cleanHref = fixUrlNull("$mainUrl/anime/$slug")
+                            ?: fixUrlNull("$mainUrl/en/anime/$slug")
+                            ?: continue
                         results.add(
                             newAnimeSearchResponse(title, cleanHref, TvType.Anime) {
                                 this.posterUrl = fixUrlNull(poster)
@@ -378,7 +457,9 @@ class TRanimaci : MainAPI() {
                         }
                         val epSlug = item.optString("slug").ifBlank { "$epNum" }
                         val epTitle = item.optString("title").ifBlank { "Bölüm $epNum" }
-                        val epUrl = fixUrlNull("$mainUrl/en/video/$epSlug") ?: continue
+                        val epUrl = fixUrlNull("$mainUrl/video/$epSlug")
+                            ?: fixUrlNull("$mainUrl/en/video/$epSlug")
+                            ?: continue
 
                         episodes.add(
                             newEpisode(epUrl) {
