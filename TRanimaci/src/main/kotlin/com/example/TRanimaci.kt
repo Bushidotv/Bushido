@@ -31,6 +31,9 @@ class TRanimaci : MainAPI() {
 
     private val cloudflareKiller by lazy { CloudflareKiller() }
 
+    // Son isteğin durumu (liste boş dönerse ekranda gösterilir; sorunu telefondan anlamak için)
+    @Volatile private var lastDiag: String = "henüz istek yok"
+
     override val mainPage = mainPageOf(
         "${mainUrl}/"                            to "Ana Sayfa",
         "${mainUrl}/populer"                     to "Popüler",
@@ -84,21 +87,45 @@ class TRanimaci : MainAPI() {
     // yokken eklenti hiç beklemez.
     private suspend fun safeGet(url: String, referer: String = "$mainUrl/"): Document? {
         var res = requestPage(url, referer)
+        var note = ""
 
         if (res == null || looksLikeChallenge(res.code, res.text)) {
+            note = if (res == null) "ilk istek hata verdi" else "Cloudflare engeli (HTTP ${res.code})"
             val context = TRanimaciPlugin.pluginContext
             if (context != null) {
                 val cookie = TRanimaciCloudflare.resolveClearance(context, "$mainUrl/")
                 if (!cookie.isNullOrBlank()) {
+                    note += " -> WebView çerezi alındı"
                     res = requestPage(url, referer)
+                } else {
+                    note += " -> WebView çerez alamadı"
                 }
+            } else {
+                note += " (context yok)"
             }
         }
 
-        val r = res ?: return null
-        if (looksLikeChallenge(r.code, r.text)) return null
-        if (r.code == 404 || r.code == 410) return null
+        val r = res
+        if (r == null) {
+            lastDiag = "$note; yanıt alınamadı"
+            return null
+        }
+        if (looksLikeChallenge(r.code, r.text)) {
+            lastDiag = "$note; hâlâ engelli (HTTP ${r.code})"
+            return null
+        }
+        if (r.code == 404 || r.code == 410) {
+            lastDiag = "HTTP ${r.code} (sayfa yok)"
+            return null
+        }
+        lastDiag = "HTTP ${r.code}, ${r.text.length} bayt, başlık: ${r.document.title().take(40)}" +
+            (if (note.isNotEmpty()) " [$note]" else "")
         return r.document
+    }
+
+    private fun diagnosticCard(label: String): SearchResponse {
+        return newAnimeSearchResponse("⚠ $label: $lastDiag", "$mainUrl/anime/teshis", TvType.Anime) {
+        }
     }
 
     private fun slugFromUrl(url: String): String =
@@ -121,7 +148,7 @@ class TRanimaci : MainAPI() {
     // ---------------------------------------------------------------------------------
 
     private fun Element.toAnimeCard(): SearchResponse? {
-        val href = this.attr("href").trim()
+        val href = this.attr("href").trim().removePrefix(mainUrl)
         if (!href.startsWith("/anime/")) return null
 
         val img = this.selectFirst("img")
@@ -136,19 +163,30 @@ class TRanimaci : MainAPI() {
     }
 
     private fun parseCards(document: Document): List<SearchResponse> {
-        return document.select("a[href^=/anime/]:has(img)")
-            .mapNotNull { it.toAnimeCard() }
-            .distinctBy { it.url }
+        val out = mutableListOf<SearchResponse>()
+        for (a in document.select("a[href]")) {
+            val path = a.attr("href").trim().removePrefix(mainUrl)
+            if (!path.startsWith("/anime/")) continue
+            if (a.selectFirst("img") == null) continue
+            val card = a.toAnimeCard()
+            if (card != null) out.add(card)
+        }
+        return out.distinctBy { it.url }
     }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         // Sayfalama parametresi bilinmediği için yalnızca ilk sayfa getirilir (tekrar eden liste olmasın)
         if (page > 1) return newHomePageResponse(request.name, emptyList(), hasNext = false)
 
-        val (document, _) = fetchPage(request.data)
-            ?: return newHomePageResponse(request.name, emptyList(), hasNext = false)
+        val fetched = fetchPage(request.data)
+            ?: return newHomePageResponse(request.name, listOf(diagnosticCard(request.name)), hasNext = false)
 
-        return newHomePageResponse(request.name, parseCards(document), hasNext = false)
+        val cards = parseCards(fetched.first)
+        if (cards.isEmpty()) {
+            lastDiag += "; 0 kart bulundu"
+            return newHomePageResponse(request.name, listOf(diagnosticCard(request.name)), hasNext = false)
+        }
+        return newHomePageResponse(request.name, cards, hasNext = false)
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
