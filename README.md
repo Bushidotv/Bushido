@@ -27,6 +27,7 @@ Bu depo, her biri **ayrı kurulan** CloudStream eklentilerinden oluşur:
 | **RecTV** | 🎬 Filmler, diziler ve canlı yayınlar (hazır `.cs3` olarak yayınlanır) |
 | **FullHDFilmizlesene** | 🎬 Filmler ve diziler (hazır `.cs3` olarak yayınlanır) |
 | **Animecix** | ⛩️ Türkçe anime (kaynak: [mustafa-tufekci/TestPlugins](https://github.com/mustafa-tufekci/TestPlugins), Panates, kamu malı) |
+| **CizgiMax** | 🧸 Çizgi film ve animasyon (kaynak: [mustafa-tufekci/TestPlugins](https://github.com/mustafa-tufekci/TestPlugins), Panates & keyiflerolsun) |
 
 ---
 
