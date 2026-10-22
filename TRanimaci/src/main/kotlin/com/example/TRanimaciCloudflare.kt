@@ -6,6 +6,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.webkit.CookieManager
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -25,9 +26,64 @@ object TRanimaciCloudflare {
     private const val TIMEOUT_MS = 20_000L
     private const val COOLDOWN_MS = 120_000L
 
+    private const val PREFS = "tranimaci_cf"
+    private const val SITE = "https://tranimaci.com"
+
     @Volatile var clearanceCookie: String? = null
     @Volatile var userAgent: String? = null
     @Volatile private var lastFailureAt = 0L
+
+    // Uygulama yeniden açılınca daha önce alınmış doğrulamayı geri yükle
+    fun restore(context: Context) {
+        try {
+            val sp = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            val c = sp.getString("cookie", null)
+            val ua = sp.getString("ua", null)
+            if (!c.isNullOrBlank() && c.contains("cf_clearance")) {
+                clearanceCookie = c
+                userAgent = ua ?: WebSettings.getDefaultUserAgent(context)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "restore error: ${e.message}")
+        }
+    }
+
+    // Kullanıcı görünür pencerede doğrulamayı geçince çağrılır
+    fun store(context: Context, cookie: String, ua: String) {
+        clearanceCookie = cookie
+        userAgent = ua
+        lastFailureAt = 0L
+        try {
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .edit().putString("cookie", cookie).putString("ua", ua).apply()
+        } catch (e: Exception) {
+            Log.e(TAG, "store error: ${e.message}")
+        }
+    }
+
+    // Çerez geçersizse (süresi dolmuş / reddedilmiş) temizle
+    fun invalidate(context: Context?) {
+        clearanceCookie = null
+        try {
+            context?.getSharedPreferences(PREFS, Context.MODE_PRIVATE)?.edit()?.clear()?.apply()
+        } catch (_: Exception) {
+        }
+    }
+
+    // WebView çerez deposunda zaten geçerli bir cf_clearance varsa (başka yoldan alınmışsa) onu kullan
+    fun adoptFromWebView(context: Context?): String? {
+        if (!clearanceCookie.isNullOrBlank()) return clearanceCookie
+        return try {
+            val c = CookieManager.getInstance().getCookie(SITE)
+            if (c != null && c.contains("cf_clearance")) {
+                clearanceCookie = c
+                if (userAgent == null && context != null) userAgent = WebSettings.getDefaultUserAgent(context)
+                c
+            } else null
+        } catch (_: Exception) {
+            null
+        }
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     suspend fun resolveClearance(context: Context, url: String): String? {

@@ -59,7 +59,7 @@ class TRanimaci : MainAPI() {
             "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
             "Referer" to referer
         )
-        val cookie = TRanimaciCloudflare.clearanceCookie
+        val cookie = TRanimaciCloudflare.adoptFromWebView(TRanimaciPlugin.pluginContext)
         if (!cookie.isNullOrBlank()) headers["Cookie"] = cookie
         return headers
     }
@@ -111,7 +111,9 @@ class TRanimaci : MainAPI() {
             return null
         }
         if (looksLikeChallenge(r.code, r.text)) {
-            lastDiag = "$note; hâlâ engelli (HTTP ${r.code})"
+            // Kayıtlı çerez reddedildiyse temizle ki yenisi alınabilsin
+            TRanimaciCloudflare.invalidate(TRanimaciPlugin.pluginContext)
+            lastDiag = "$note; hâlâ engelli (HTTP ${r.code}). Çözüm: Ayarlar > Uzantılar > TRanimeci dişlisine bas ve doğrulamayı kendin tamamla."
             return null
         }
         if (r.code == 404 || r.code == 410) {
@@ -124,7 +126,8 @@ class TRanimaci : MainAPI() {
     }
 
     private fun diagnosticCard(label: String): SearchResponse {
-        return newAnimeSearchResponse("⚠ $label: $lastDiag", "$mainUrl/anime/teshis", TvType.Anime) {
+        val short = if (lastDiag.contains("engel")) "Cloudflare doğrulaması gerekli — dokun" else "Sorun — dokun"
+        return newAnimeSearchResponse("⚠ $short", "$mainUrl/anime/teshis", TvType.Anime) {
         }
     }
 
@@ -268,6 +271,16 @@ class TRanimaci : MainAPI() {
 
     override suspend fun load(url: String): LoadResponse? {
         val requestedUrl = fixUrl(url)
+
+        // Teşhis kartına dokunulunca durumu ve çözümü göster
+        if (requestedUrl.endsWith("/anime/teshis")) {
+            val help = "Cloudflare doğrulaması için: CloudStream > Ayarlar > Uzantılar > TRanimeci yanındaki dişliye bas. " +
+                "Açılan pencerede doğrulamayı kendin tamamla, sonra ana sayfayı yenile."
+            return newMovieLoadResponse("Durum", requestedUrl, TvType.AnimeMovie, requestedUrl) {
+                this.plot = "$lastDiag\n\n$help"
+            }
+        }
+
         val (document, fixedUrl) = fetchPage(requestedUrl) ?: return null
 
         val ld = parseJsonLd(document)

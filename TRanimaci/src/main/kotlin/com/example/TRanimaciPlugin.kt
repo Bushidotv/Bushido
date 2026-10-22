@@ -11,7 +11,11 @@ class TRanimaciPlugin : Plugin() {
     }
 
     override fun load(context: Context) {
-        pluginContext = context
+        pluginContext = context.applicationContext ?: context
+        pluginContext?.let { TRanimaciCloudflare.restore(it) }
         registerMainAPI(TRanimaci())
+
+        // Ayarlar > Uzantılar > TRanimeci dişlisi: görünür Cloudflare doğrulama penceresi
+        openSettings = { ctx -> TRanimaciVerifyDialog.show(ctx) }
     }
 }
