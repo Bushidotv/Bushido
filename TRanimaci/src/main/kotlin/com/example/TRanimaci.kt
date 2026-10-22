@@ -32,16 +32,19 @@ class TRanimaci : MainAPI() {
     private val cloudflareKiller by lazy { CloudflareKiller() }
 
     override val mainPage = mainPageOf(
-        "${mainUrl}/"                              to "Ana Sayfa",
-        "${mainUrl}/animeler"                      to "Animeler",
-        "${mainUrl}/anime-filmleri"                to "Anime Filmleri",
-        "${mainUrl}/en"                            to "Son Eklenenler",
-        "${mainUrl}/en/anime"                      to "Tüm Animeler",
-        "${mainUrl}/kategori/aksiyon-anime"        to "Aksiyon",
-        "${mainUrl}/kategori/komedi-anime"         to "Komedi",
-        "${mainUrl}/kategori/fantastik-anime"      to "Fantastik",
-        "${mainUrl}/kategori/romantizm-anime"      to "Romantizm",
-        "${mainUrl}/kategori/shounen-anime"        to "Shounen"
+        "${mainUrl}/"                            to "Ana Sayfa",
+        "${mainUrl}/populer"                     to "Popüler",
+        "${mainUrl}/yeni"                        to "Yeni",
+        "${mainUrl}/yeni-cikanlar"               to "Yeni Çıkanlar",
+        "${mainUrl}/klasikler"                   to "Klasikler",
+        "${mainUrl}/anime-filmleri"              to "Anime Filmleri",
+        "${mainUrl}/anime"                       to "Tüm Animeler",
+        "${mainUrl}/kategori/aksiyon-anime"      to "Aksiyon",
+        "${mainUrl}/kategori/macera-anime"       to "Macera",
+        "${mainUrl}/kategori/komedi-anime"       to "Komedi",
+        "${mainUrl}/kategori/fantastik-anime"    to "Fantastik",
+        "${mainUrl}/kategori/romantik-anime"     to "Romantik",
+        "${mainUrl}/kategori/drama-anime"        to "Drama"
     )
 
     // Küçük sonuç taşıyıcı: HTTP kodu + ham metin + ayrıştırılmış Document
@@ -98,263 +101,254 @@ class TRanimaci : MainAPI() {
         return r.document
     }
 
-    // "/en" önekini aç/kapat: https://site/x <-> https://site/en/x
-    private fun alternateRoute(url: String): String {
-        val rest = url.removePrefix(mainUrl)
-        val hasEn = rest == "/en" || rest.startsWith("/en/") || rest.startsWith("/en?")
-        val alt = if (hasEn) rest.removePrefix("/en") else "/en$rest"
-        return mainUrl + (if (alt.isEmpty()) "/" else alt)
-    }
-
-    private fun routePrefix(pageUrl: String): String {
-        val rest = pageUrl.removePrefix(mainUrl)
-        return if (rest == "/en" || rest.startsWith("/en/") || rest.startsWith("/en?")) "/en" else ""
-    }
-
-    // Gerçek ikinci deneme: 404/engel/hata durumunda alternatif rotayı dener ve
-    // hangi adresin çalıştığını da döndürür (sonraki adresler aynı öneki kullansın diye).
-    private suspend fun fetchPage(url: String): Pair<Document, String>? {
-        val first = safeGet(url)
-        if (first != null) return Pair(first, url)
-        val alt = alternateRoute(url)
-        if (alt != url) {
-            val second = safeGet(alt)
-            if (second != null) return Pair(second, alt)
-        }
-        return null
-    }
-
     private fun slugFromUrl(url: String): String =
         url.substringBefore("?").trimEnd('/').substringAfterLast('/')
 
-    // JSON öğesi kendi adresini veriyorsa onu kullan (tahminden daha güvenilir)
-    private fun pickUrl(item: JSONObject): String? {
-        for (k in listOf("url", "href", "link", "path", "permalink")) {
-            val v = item.optString(k)
-            if (v.isNotBlank() && (v.startsWith("/") || v.startsWith("http"))) {
-                return fixUrlNull(v)
-            }
+    // Site "/en" gibi bir dil öneki kullanmıyor; tek istek yeterli.
+    private suspend fun fetchPage(url: String): Pair<Document, String>? {
+        val doc = safeGet(url) ?: return null
+        return Pair(doc, url)
+    }
+
+    // ---------------------------------------------------------------------------------
+    // Sitenin GERÇEK yapısı (kaydedilen sayfalardan doğrulandı):
+    //  * Kartlar:  <a href="/anime/<slug>"> ... <img alt="Ad" src="/images/remote/..webp"> ... <h3>Ad</h3>
+    //  * Arama:    /arama?q=<kelime>
+    //  * Anime sayfası: <h1>, og:image, JSON-LD (TVSeries: description, genre, datePublished) ve
+    //    bölümlerin TAMAMI Next.js (RSC) verisinde "episodes":[{href,title,number,thumbnail,...}]
+    //    içinde bulunur (HTML'de yalnızca ilk 60 tanesi görünür).
+    //  * Bölüm sayfası: /video/<slug>-<no>-bolum
+    // ---------------------------------------------------------------------------------
+
+    private fun Element.toAnimeCard(): SearchResponse? {
+        val href = this.attr("href").trim()
+        if (!href.startsWith("/anime/")) return null
+
+        val img = this.selectFirst("img")
+        val title = this.selectFirst("h3")?.text()?.trim().orEmpty()
+            .ifBlank { img?.attr("alt")?.trim().orEmpty() }
+        if (title.isBlank()) return null
+
+        val poster = fixUrlNull(img?.attr("src"))
+        return newAnimeSearchResponse(title, fixUrl(href), TvType.Anime) {
+            this.posterUrl = poster
         }
-        return null
+    }
+
+    private fun parseCards(document: Document): List<SearchResponse> {
+        return document.select("a[href^=/anime/]:has(img)")
+            .mapNotNull { it.toAnimeCard() }
+            .distinctBy { it.url }
     }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val baseUrl = request.data
-        val url = if (page > 1) {
-            if (baseUrl.contains("?")) "$baseUrl&page=$page" else "$baseUrl?page=$page"
-        } else {
-            baseUrl
-        }
+        // Sayfalama parametresi bilinmediği için yalnızca ilk sayfa getirilir (tekrar eden liste olmasın)
+        if (page > 1) return newHomePageResponse(request.name, emptyList(), hasNext = false)
 
-        val (document, usedUrl) = fetchPage(url) ?: return newHomePageResponse(request.name, emptyList())
-        val prefix = routePrefix(usedUrl)
-        val home = mutableListOf<SearchResponse>()
+        val (document, _) = fetchPage(request.data)
+            ?: return newHomePageResponse(request.name, emptyList(), hasNext = false)
 
-        // 1. Next.js __NEXT_DATA__ JSON Parser
-        val nextDataScript = document.selectFirst("script#__NEXT_DATA__")?.data()
-        if (!nextDataScript.isNullOrBlank()) {
-            try {
-                val json = JSONObject(nextDataScript)
-                val pageProps = json.optJSONObject("props")?.optJSONObject("pageProps")
-                if (pageProps != null) {
-                    parseNextDataItems(pageProps, home, prefix)
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "JSON parse error: ${e.message}")
-            }
-        }
-
-        // 2. HTML Scraper (DiziPal Card & Anchor pattern)
-        if (home.isEmpty()) {
-            val elements = document.select(
-                "ul.content-grid > li, div.content-grid > div, div.grid > div, article, " +
-                "div.anime-card, div.card, a[href*='/anime/'], a[href*='/series/'], a[href*='/video/'], a[href*='bolum']"
-            )
-
-            for (element in elements) {
-                val item = element.toSearchResult()
-                if (item != null) {
-                    home.add(item)
-                }
-            }
-        }
-
-        val distinct = home.distinctBy { it.url }
-        return newHomePageResponse(request.name, distinct, hasNext = distinct.size >= 8)
-    }
-
-    private fun Element.toSearchResult(): SearchResponse? {
-        val anchor = if (this.tagName().equals("a", ignoreCase = true)) {
-            this
-        } else {
-            this.selectFirst("a[href*='/anime/'], a[href*='/series/'], a[href*='/video/'], a[href*='bolum'], a") ?: return null
-        }
-
-        val rawHref = anchor.attr("href").trim()
-        if (rawHref.isBlank() || rawHref == "#" || rawHref.startsWith("javascript:")) return null
-        val href = fixUrlNull(rawHref) ?: return null
-
-        // Ignore utility / auth links
-        if (href.contains("/kategori/") || href.contains("/login") || href.contains("/register") ||
-            href == "$mainUrl" || href == "$mainUrl/" || href == "$mainUrl/en" || href == "$mainUrl/en/") {
-            return null
-        }
-
-        val imgElement = this.selectFirst("img") ?: anchor.selectFirst("img")
-        val posterUrl = fixUrlNull(
-            imgElement?.attr("data-src")?.takeIf { it.isNotBlank() }
-                ?: imgElement?.attr("data-lazy-src")?.takeIf { it.isNotBlank() }
-                ?: imgElement?.attr("srcset")?.split(" ")?.firstOrNull()?.takeIf { it.isNotBlank() }
-                ?: imgElement?.attr("src")?.takeIf { it.isNotBlank() }
-                ?: this.selectFirst("img")?.attr("src")?.takeIf { it.isNotBlank() }
-        )
-
-        // Bulletproof Title extraction: DOM elements -> attributes -> URL slug fallback
-        val domTitle = this.selectFirst("h1, h2, h3, h4, h5, p, span, .title, .name, .card-title, .anime-title, .film-title, .ep-title")?.text()?.trim()
-        val attrTitle = anchor.attr("title").trim()
-        val altTitle = imgElement?.attr("alt")?.trim()
-        val rawTitle = if (!domTitle.isNullOrBlank() && domTitle.length < 80) {
-            domTitle
-        } else if (attrTitle.isNotBlank()) {
-            attrTitle
-        } else if (!altTitle.isNullOrBlank()) {
-            altTitle
-        } else {
-            href.trimEnd('/').substringAfterLast('/')
-                .replace('-', ' ')
-                .replace('_', ' ')
-                .replaceFirstChar { it.uppercase() }
-        }
-
-        val cleanTitle = rawTitle.replace(Regex("""(?i)\s*(izle|full\s*hd|hd|türkçe\s*altyazı.*)$"""), "").trim()
-        if (cleanTitle.isBlank()) return null
-
-        val isEpisode = href.contains("/video/") || href.contains("/bolum/") || href.contains("-bolum")
-
-        return if (isEpisode) {
-            val seriesUrl = href
-                .replace(Regex("""-\d+-bolum.*$"""), "")
-                .replace(Regex("""-bolum.*$"""), "")
-                .replace("/video/", "/anime/")
-                .replace("/bolum/", "/anime/")
-
-            newTvSeriesSearchResponse(cleanTitle, seriesUrl, TvType.Anime) {
-                this.posterUrl = posterUrl
-            }
-        } else {
-            newAnimeSearchResponse(cleanTitle, href, TvType.Anime) {
-                this.posterUrl = posterUrl
-            }
-        }
+        return newHomePageResponse(request.name, parseCards(document), hasNext = false)
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
         val encoded = URLEncoder.encode(query, "UTF-8")
-        val searchUrl = "$mainUrl/ara?q=$encoded"
-        val (document, usedUrl) = fetchPage(searchUrl) ?: return emptyList()
-        val prefix = routePrefix(usedUrl)
-        val results = mutableListOf<SearchResponse>()
-
-        val nextDataScript = document.selectFirst("script#__NEXT_DATA__")?.data()
-        if (!nextDataScript.isNullOrBlank()) {
-            try {
-                val json = JSONObject(nextDataScript)
-                val pageProps = json.optJSONObject("props")?.optJSONObject("pageProps")
-                if (pageProps != null) {
-                    parseNextDataItems(pageProps, results, prefix)
-                }
-            } catch (_: Exception) {}
-        }
-
-        if (results.isEmpty()) {
-            val elements = document.select("a[href*='/anime/'], a[href*='/series/'], article, div.anime-card, div.card, ul.content-grid > li")
-            for (element in elements) {
-                val item = element.toSearchResult()
-                if (item != null) results.add(item)
-            }
-        }
-
-        return results.distinctBy { it.url }
+        val (document, _) = fetchPage("$mainUrl/arama?q=$encoded") ?: return emptyList()
+        return parseCards(document)
     }
 
     override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
 
+    // ---- Next.js (RSC) verisini çözme -------------------------------------------------
+
+    // <script>self.__next_f.push([1,"...."])</script> parçalarını birleştirip düz metne çevirir
+    private fun rscPayload(document: Document): String {
+        val marker = "self.__next_f.push("
+        val sb = StringBuilder()
+        for (script in document.select("script")) {
+            val t = script.data()
+            val idx = t.indexOf(marker)
+            if (idx < 0) continue
+            val inner = t.substring(idx + marker.length).trim().removeSuffix(";").trim().removeSuffix(")")
+            try {
+                val arr = JSONArray(inner)
+                if (arr.length() > 1) sb.append(arr.optString(1, ""))
+            } catch (_: Exception) {
+            }
+        }
+        return sb.toString()
+    }
+
+    // '[' konumundan başlayıp eşleşen ']' konumunu bulur (metin içindeki köşeli parantezleri atlar)
+    private fun matchBracket(s: String, start: Int): Int {
+        var depth = 0
+        var inStr = false
+        var esc = false
+        for (i in start until s.length) {
+            val c = s[i]
+            if (inStr) {
+                if (esc) {
+                    esc = false
+                } else if (c == '\\') {
+                    esc = true
+                } else if (c == '"') {
+                    inStr = false
+                }
+            } else {
+                if (c == '"') {
+                    inStr = true
+                } else if (c == '[') {
+                    depth++
+                } else if (c == ']') {
+                    depth--
+                    if (depth == 0) return i
+                }
+            }
+        }
+        return -1
+    }
+
+    // payload içinde  "<key>":[ ... ]  dizisini bulur; accept() true dönen ilk diziyi verir
+    private fun findArray(payload: String, key: String, accept: (JSONArray) -> Boolean): JSONArray? {
+        val needle = "\"$key\":["
+        var from = 0
+        while (true) {
+            val idx = payload.indexOf(needle, from)
+            if (idx < 0) return null
+            val start = idx + needle.length - 1
+            val end = matchBracket(payload, start)
+            if (end > start) {
+                try {
+                    val arr = JSONArray(payload.substring(start, end + 1))
+                    if (accept(arr)) return arr
+                } catch (_: Exception) {
+                }
+            }
+            from = idx + needle.length
+        }
+    }
+
     override suspend fun load(url: String): LoadResponse? {
         val requestedUrl = fixUrl(url)
         val (document, fixedUrl) = fetchPage(requestedUrl) ?: return null
-        val prefix = routePrefix(fixedUrl)
-        val animeSlug = slugFromUrl(fixedUrl)
 
-        val title = document.selectFirst("h1.series-title, h1.anime-title, h1.entry-title, h1")?.text()?.trim()
-            ?: document.selectFirst("meta[property=og:title]")?.attr("content")?.substringBefore(" izle")?.trim()
-            ?: fixedUrl.trimEnd('/').substringAfterLast('/').replace('-', ' ').replaceFirstChar { it.uppercase() }
+        val ld = parseJsonLd(document)
+
+        val title = document.selectFirst("h1")?.text()?.trim()
+            ?: ld?.optString("name")?.takeIf { it.isNotBlank() }
+            ?: document.selectFirst("meta[property=og:title]")?.attr("content")?.substringBefore(" İzle")?.trim()
+            ?: slugFromUrl(fixedUrl).replace('-', ' ').replaceFirstChar { it.uppercase() }
 
         val poster = fixUrlNull(
             document.selectFirst("meta[property=og:image]")?.attr("content")
-                ?: document.selectFirst("div.poster img, img.poster, div.anime-poster img")?.attr("data-src")
-                ?: document.selectFirst("div.poster img, img.poster, div.anime-poster img")?.attr("src")
-                ?: document.selectFirst("img")?.attr("src")
+                ?: ld?.optJSONObject("image")?.optString("url")
         )
 
-        val description = document.selectFirst("div.synopsis, div.anime-details p, p.series-description, meta[property=og:description]")?.let {
-            if (it.tagName().equals("meta", ignoreCase = true)) it.attr("content") else it.text()
-        }?.trim()
+        val plot = ld?.optString("description")?.takeIf { it.isNotBlank() }
+            ?: document.selectFirst("meta[property=og:description]")?.attr("content")
 
-        val year = document.selectFirst("div.info-row:contains(Yıl), div.meta:contains(Yıl), span.year")?.text()
-            ?.let { Regex("""\b(19\d\d|20\d\d)\b""").find(it)?.groupValues?.get(1)?.toIntOrNull() }
+        val year = ld?.optString("datePublished")?.take(4)?.toIntOrNull()
 
-        val tags = document.select("div.genres a, div.categories a, a[href*='/kategori/']").map { it.text().trim() }
-
-        val episodes = mutableListOf<Episode>()
-
-        // 1. Next.js episodes
-        val nextDataScript = document.selectFirst("script#__NEXT_DATA__")?.data()
-        if (!nextDataScript.isNullOrBlank()) {
-            try {
-                val json = JSONObject(nextDataScript)
-                val pageProps = json.optJSONObject("props")?.optJSONObject("pageProps")
-                if (pageProps != null) {
-                    parseNextDataEpisodes(pageProps, episodes, prefix, animeSlug)
-                }
-            } catch (_: Exception) {}
+        val tags = mutableListOf<String>()
+        val genres = ld?.optJSONArray("genre")
+        if (genres != null) {
+            for (i in 0 until genres.length()) {
+                val g = genres.optString(i)
+                if (g.isNotBlank()) tags.add(g)
+            }
         }
 
-        // 2. HTML episodes
-        if (episodes.isEmpty()) {
-            document.select("div.episodes a, ul.episodes-list a, a[href*='/video/'], a[href*='/bolum/'], a[href*='bolum'], a[href*='episode']").forEach { a ->
-                val epHref = fixUrlNull(a.attr("href")) ?: return@forEach
-                val epText = a.text().trim().ifBlank { a.attr("title") }
-                val epNum = Regex("""(?:bölüm|bolum|episode)\s*[-.:]?\s*(\d+)|(\d+)\.\s*(?:bölüm|bolum)|bolum-(\d+)|episode-(\d+)""", RegexOption.IGNORE_CASE)
-                    .find("$epHref $epText")?.let { m ->
-                        m.groupValues.drop(1).firstOrNull { it.isNotBlank() }?.toIntOrNull()
-                    }
-
+        // 1) Bölümlerin tamamı RSC verisinde
+        val episodes = mutableListOf<Episode>()
+        val payload = rscPayload(document)
+        val epArray = findArray(payload, "episodes", { arr ->
+            val first = if (arr.length() > 0) arr.optJSONObject(0) else null
+            first != null && (first.has("href") || first.has("slug"))
+        })
+        if (epArray != null) {
+            for (i in 0 until epArray.length()) {
+                val item = epArray.optJSONObject(i) ?: continue
+                val href = item.optString("href").ifBlank {
+                    item.optString("slug").takeIf { it.isNotBlank() }?.let { "/video/$it" } ?: ""
+                }
+                if (href.isBlank()) continue
+                val number = if (item.has("number")) item.optInt("number") else i + 1
+                val season = item.optInt("seasonNumber", 0).takeIf { it > 0 }
+                val epTitle = item.optString("title").ifBlank { "$number. Bölüm" }
+                val thumb = fixUrlNull(item.optString("thumbnail"))
                 episodes.add(
-                    newEpisode(epHref) {
-                        this.name = epText.ifBlank { "Bölüm ${epNum ?: 1}" }
-                        this.episode = epNum
+                    newEpisode(fixUrl(href)) {
+                        this.name = epTitle
+                        this.episode = number
+                        this.season = season
+                        this.posterUrl = thumb
                     }
                 )
             }
         }
 
-        return if (episodes.isNotEmpty()) {
-            newTvSeriesLoadResponse(title, fixedUrl, TvType.Anime, episodes.distinctBy { it.data }) {
+        // 2) Yedek: HTML'deki bölüm bağlantıları (ilk 60 tanesi)
+        if (episodes.isEmpty()) {
+            document.select("a[href^=/video/]").forEach { a ->
+                val epHref = a.attr("href")
+                val num = Regex("-(\\d+)-bolum").find(epHref)?.groupValues?.get(1)?.toIntOrNull()
+                if (num != null) {
+                    episodes.add(
+                        newEpisode(fixUrl(epHref)) {
+                            this.name = "$num. Bölüm"
+                            this.episode = num
+                        }
+                    )
+                }
+            }
+        }
+
+        val distinct = episodes.distinctBy { it.data }
+        return if (distinct.isNotEmpty()) {
+            newAnimeLoadResponse(title, fixedUrl, TvType.Anime) {
                 this.posterUrl = poster
                 this.year = year
-                this.plot = description
+                this.plot = plot
                 this.tags = tags
+                addEpisodes(DubStatus.Subbed, distinct)
             }
         } else {
             newMovieLoadResponse(title, fixedUrl, TvType.AnimeMovie, fixedUrl) {
                 this.posterUrl = poster
                 this.year = year
-                this.plot = description
+                this.plot = plot
                 this.tags = tags
             }
         }
     }
 
+    // JSON-LD içindeki TVSeries kaydı
+    private fun parseJsonLd(document: Document): JSONObject? {
+        for (script in document.select("script[type=application/ld+json]")) {
+            val txt = script.data().trim()
+            try {
+                if (txt.startsWith("[")) {
+                    val arr = JSONArray(txt)
+                    for (i in 0 until arr.length()) {
+                        val o = arr.optJSONObject(i) ?: continue
+                        if (o.optString("@type") == "TVSeries") return o
+                    }
+                } else {
+                    val o = JSONObject(txt)
+                    if (o.optString("@type") == "TVSeries") return o
+                }
+            } catch (_: Exception) {
+            }
+        }
+        return null
+    }
+
+    // ---- Oynatma -----------------------------------------------------------------------
+    // NOT: Site, video kaynaklarını sayfaya GÖMMÜYOR. Kaydedilen bölüm sayfasında
+    //   videoSources = [] ve viewerHasVideoAccess = false geliyor; kaynaklar yalnızca sitenin
+    //   kendi oynatıcısı Cloudflare Turnstile doğrulamasını geçince ayrıca isteniyor.
+    // Burada yalnızca sunucunun sayfada kendiliğinden verdiği kaynaklar kullanılır; Turnstile
+    // doğrulaması aşılmaya çalışılmaz. Kaynak yoksa false döner.
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
@@ -362,47 +356,20 @@ class TRanimaci : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val requestedData = fixUrl(data)
-        val (document, fixedData) = fetchPage(requestedData) ?: return false
+        val (document, pageUrl) = fetchPage(requestedData) ?: return false
         var hasFound = false
 
-        // 1. Next.js player/iframe parsing from __NEXT_DATA__
-        val nextDataScript = document.selectFirst("script#__NEXT_DATA__")?.data()
-        if (!nextDataScript.isNullOrBlank()) {
-            try {
-                val json = JSONObject(nextDataScript)
-                val pageProps = json.optJSONObject("props")?.optJSONObject("pageProps")
-                if (pageProps != null) {
-                    val candidateLinks = mutableListOf<String>()
-                    extractNextDataPlayerUrls(pageProps, candidateLinks)
-                    for (link in candidateLinks) {
-                        val fixedLink = fixUrl(link)
-                        if (loadExtractor(fixedLink, fixedData, subtitleCallback, callback)) {
-                            hasFound = true
-                        }
-                    }
-                }
-            } catch (_: Exception) {}
-        }
-
-        // 2. DOM Iframes
-        val iframes = document.select("iframe").mapNotNull {
-            val src = it.attr("src").ifBlank { it.attr("data-src") }
-            if (src.isNotBlank()) src else null
-        }
-
-        for (rawSrc in iframes) {
-            val src = fixUrl(rawSrc)
-            if (loadExtractor(src, fixedData, subtitleCallback, callback)) {
+        // 1) Sayfadaki iframe / video etiketleri
+        for (iframe in document.select("iframe")) {
+            val src = iframe.attr("src").ifBlank { iframe.attr("data-src") }
+            if (src.isNotBlank() && loadExtractor(fixUrl(src), pageUrl, subtitleCallback, callback)) {
                 hasFound = true
             }
         }
-
-        // 3. Direct video elements
-        val videoSources = document.select("video source, video").mapNotNull {
-            it.attr("src").takeIf { s -> s.isNotBlank() }
-        }
-        for (vSrc in videoSources) {
-            val fixed = fixUrl(vSrc)
+        for (v in document.select("video source, video")) {
+            val src = v.attr("src")
+            if (src.isBlank()) continue
+            val fixed = fixUrl(src)
             callback.invoke(
                 newExtractorLink(
                     source = name,
@@ -410,170 +377,49 @@ class TRanimaci : MainAPI() {
                     url = fixed,
                     type = if (fixed.contains(".m3u8")) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
                 ) {
-                    this.referer = fixedData
+                    this.referer = pageUrl
                 }
             )
             hasFound = true
         }
 
-        // 4. Sayfa/JSON/script metninde gömülü doğrudan akışlar ve gömülü oynatıcı adresleri
-        //    (Next.js oynatıcıyı tarayıcıda eklediği için iframe/video etiketi olmayabilir)
-        if (!hasFound) {
-            val raw = document.html().replace("\\/", "/")
-            val seen = mutableSetOf<String>()
-
-            val mediaRegex = Regex("https?://[^\\s\"'<>\\\\]+?\\.(?:m3u8|mp4)(?:\\?[^\\s\"'<>\\\\]*)?")
-            for (m in mediaRegex.findAll(raw)) {
-                val link = m.value
-                if (!seen.add(link)) continue
-                callback.invoke(
-                    newExtractorLink(
-                        source = name,
-                        name = "TRanimeci Stream",
-                        url = link,
-                        type = if (link.contains(".m3u8")) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
-                    ) {
-                        this.referer = fixedData
+        // 2) Sunucunun sayfaya yazdığı videoSources / mirrors (boş değilse)
+        val payload = rscPayload(document)
+        for (key in listOf("videoSources", "mirrors")) {
+            val found = findArray(payload, key, { a -> a.length() > 0 })
+            if (found == null) continue
+            val arr: JSONArray = found
+            for (i in 0 until arr.length()) {
+                val item = arr.opt(i)
+                val candidates = mutableListOf<String>()
+                if (item is String) candidates.add(item)
+                if (item is JSONObject) {
+                    for (k in listOf("url", "src", "file", "link", "embed")) {
+                        val v = item.optString(k)
+                        if (v.startsWith("http") || v.startsWith("//")) candidates.add(v)
                     }
-                )
-                hasFound = true
-            }
-
-            val hostHints = listOf(
-                "embed", "player", "iframe", "/e/", "/v/", "vidmoly", "sibnet", "ok.ru", "mail.ru",
-                "dailymotion", "filemoon", "streamtape", "dood", "mixdrop", "voe.", "vidoza", "uqload",
-                "sendvid", "pixeldrain", "drive.google.com", "fembed"
-            )
-            val assetExt = listOf(".js", ".css", ".png", ".jpg", ".jpeg", ".webp", ".svg", ".ico", ".woff", ".woff2", ".gif")
-            val urlRegex = Regex("https?://[^\\s\"'<>\\\\]+")
-            var tried = 0
-            for (m in urlRegex.findAll(raw)) {
-                val link = m.value.trimEnd(',', ';', ')')
-                if (tried >= 12) break
-                if (link.startsWith(mainUrl)) continue
-                if (assetExt.any { link.substringBefore("?").endsWith(it, ignoreCase = true) }) continue
-                if (hostHints.none { link.contains(it, ignoreCase = true) }) continue
-                if (!seen.add(link)) continue
-                tried++
-                if (loadExtractor(link, fixedData, subtitleCallback, callback)) {
-                    hasFound = true
+                }
+                for (c in candidates) {
+                    val link = fixUrl(c)
+                    if (link.contains(".m3u8") || link.contains(".mp4")) {
+                        callback.invoke(
+                            newExtractorLink(
+                                source = name,
+                                name = "TRanimeci Stream",
+                                url = link,
+                                type = if (link.contains(".m3u8")) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
+                            ) {
+                                this.referer = pageUrl
+                            }
+                        )
+                        hasFound = true
+                    } else if (loadExtractor(link, pageUrl, subtitleCallback, callback)) {
+                        hasFound = true
+                    }
                 }
             }
-        }
-
-        // 5. Fallback on data page itself
-        if (!hasFound) {
-            hasFound = loadExtractor(fixedData, "$mainUrl/", subtitleCallback, callback)
         }
 
         return hasFound
-    }
-
-    private fun extractNextDataPlayerUrls(node: JSONObject, links: MutableList<String>) {
-        val keys = node.keys()
-        while (keys.hasNext()) {
-            val key = keys.next()
-            val value = node.opt(key)
-            if (value is String) {
-                if (key.contains("iframe", ignoreCase = true) ||
-                    key.contains("player", ignoreCase = true) ||
-                    key.contains("video", ignoreCase = true) ||
-                    key.contains("stream", ignoreCase = true) ||
-                    key.contains("embed", ignoreCase = true)
-                ) {
-                    if (value.startsWith("http") || value.startsWith("//")) {
-                        links.add(value)
-                    }
-                }
-            } else if (value is JSONObject) {
-                extractNextDataPlayerUrls(value, links)
-            } else if (value is JSONArray) {
-                for (i in 0 until value.length()) {
-                    val item = value.optJSONObject(i)
-                    if (item != null) {
-                        extractNextDataPlayerUrls(item, links)
-                    }
-                }
-            }
-        }
-    }
-
-    private fun parseNextDataItems(node: JSONObject, results: MutableList<SearchResponse>, prefix: String) {
-        val keys = node.keys()
-        while (keys.hasNext()) {
-            val key = keys.next()
-            val value = node.opt(key)
-            if (value is JSONArray) {
-                for (i in 0 until value.length()) {
-                    val item = value.optJSONObject(i) ?: continue
-                    val title = item.optString("title").ifBlank {
-                        item.optString("name").ifBlank { item.optString("anime_name") }
-                    }
-                    val slug = item.optString("slug").ifBlank {
-                        item.optString("id")
-                    }
-
-                    if (title.isNotBlank() && slug.isNotBlank()) {
-                        val poster = item.optString("poster").ifBlank {
-                            item.optString("image").ifBlank {
-                                item.optString("cover")
-                            }
-                        }
-                        val cleanHref = pickUrl(item)
-                            ?: fixUrlNull("$mainUrl$prefix/anime/$slug")
-                            ?: continue
-                        results.add(
-                            newAnimeSearchResponse(title, cleanHref, TvType.Anime) {
-                                this.posterUrl = fixUrlNull(poster)
-                            }
-                        )
-                    }
-                }
-            } else if (value is JSONObject) {
-                parseNextDataItems(value, results, prefix)
-            }
-        }
-    }
-
-    private fun parseNextDataEpisodes(node: JSONObject, episodes: MutableList<Episode>, prefix: String, animeSlug: String) {
-        val keys = node.keys()
-        while (keys.hasNext()) {
-            val key = keys.next()
-            val value = node.opt(key)
-            if (value is JSONArray) {
-                val isEpisodeKey = key.contains("episode", ignoreCase = true) || key.contains("bolum", ignoreCase = true)
-                if (isEpisodeKey) {
-                    for (i in 0 until value.length()) {
-                        val item = value.optJSONObject(i) ?: continue
-                        val epNum: Int = if (item.has("episode_number")) {
-                            item.optInt("episode_number")
-                        } else if (item.has("number")) {
-                            item.optInt("number")
-                        } else {
-                            i + 1
-                        }
-                        val epSlug = item.optString("slug")
-                        val epTitle = item.optString("title").ifBlank { "Bölüm $epNum" }
-                        val built = if (epSlug.isNotBlank()) {
-                            fixUrlNull("$mainUrl$prefix/video/$epSlug")
-                        } else if (animeSlug.isNotBlank()) {
-                            fixUrlNull("$mainUrl$prefix/video/$animeSlug-$epNum-bolum")
-                        } else {
-                            null
-                        }
-                        val epUrl = pickUrl(item) ?: built ?: continue
-
-                        episodes.add(
-                            newEpisode(epUrl) {
-                                this.name = epTitle
-                                this.episode = epNum
-                            }
-                        )
-                    }
-                }
-            } else if (value is JSONObject) {
-                parseNextDataEpisodes(value, episodes, prefix, animeSlug)
-            }
-        }
     }
 }
