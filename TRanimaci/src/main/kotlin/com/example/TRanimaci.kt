@@ -44,50 +44,98 @@ class TRanimaci : MainAPI() {
         "${mainUrl}/kategori/shounen-anime"        to "Shounen"
     )
 
-    private suspend fun safeGet(url: String, referer: String = "$mainUrl/"): Document? {
-        val context = TRanimaciPlugin.pluginContext
+    // Küçük sonuç taşıyıcı: HTTP kodu + ham metin + ayrıştırılmış Document
+    private class PageResult(val code: Int, val text: String, val document: Document)
 
-        // 1. Initial clearance check via non-blocking WebView suspension if needed
-        if (TRanimaciCloudflare.clearanceCookie.isNullOrBlank() && context != null) {
-            TRanimaciCloudflare.resolveClearance(context, "$mainUrl/")
-        }
-
-        val ua = TRanimaciCloudflare.userAgent ?: DEFAULT_USER_AGENT
-        val cookie = TRanimaciCloudflare.clearanceCookie
-
+    private fun buildHeaders(referer: String): MutableMap<String, String> {
         val headers = mutableMapOf(
-            "User-Agent" to ua,
+            "User-Agent" to (TRanimaciCloudflare.userAgent ?: DEFAULT_USER_AGENT),
             "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
             "Referer" to referer
         )
-        if (!cookie.isNullOrBlank()) {
-            headers["Cookie"] = cookie
-        }
+        val cookie = TRanimaciCloudflare.clearanceCookie
+        if (!cookie.isNullOrBlank()) headers["Cookie"] = cookie
+        return headers
+    }
 
+    // Cloudflare "Just a moment" / engel sayfası mı? (normal CF'li sayfalarda da bulunan
+    // "challenge-platform" betiğini bilerek ölçüt almıyoruz, yoksa her sayfa engelli sanılır.)
+    private fun looksLikeChallenge(code: Int, body: String): Boolean {
+        if (body.contains("<title>Just a moment")) return true
+        return (code == 403 || code == 503) &&
+            (body.contains("cf-chl") || body.contains("Just a moment") || body.contains("Attention Required"))
+    }
+
+    private suspend fun requestPage(url: String, referer: String): PageResult? {
         return try {
-            val res = app.get(
-                url,
-                headers = headers,
-                interceptor = cloudflareKiller
-            )
-
-            // 2. If challenge page detected, re-resolve clearance once
-            if (res.text.contains("Just a moment") && context != null) {
-                TRanimaciCloudflare.clearanceCookie = null
-                val newCookie = TRanimaciCloudflare.resolveClearance(context, url)
-                if (!newCookie.isNullOrBlank()) {
-                    headers["Cookie"] = newCookie
-                    app.get(url, headers = headers, interceptor = cloudflareKiller).document
-                } else {
-                    res.document
-                }
-            } else {
-                res.document
-            }
+            val res = app.get(url, headers = buildHeaders(referer), interceptor = cloudflareKiller)
+            PageResult(res.code, res.text, res.document)
         } catch (e: Exception) {
-            Log.e(TAG, "safeGet error for $url: ${e.message}")
+            Log.e(TAG, "request error for $url: ${e.message}")
             null
         }
+    }
+
+    // ÖNCE normal istek atılır. WebView yalnızca gerçekten Cloudflare engeli varsa
+    // (ve son denemeden beri bekleme süresi dolduysa) devreye girer; böylece engel
+    // yokken eklenti hiç beklemez.
+    private suspend fun safeGet(url: String, referer: String = "$mainUrl/"): Document? {
+        var res = requestPage(url, referer)
+
+        if (res == null || looksLikeChallenge(res.code, res.text)) {
+            val context = TRanimaciPlugin.pluginContext
+            if (context != null) {
+                val cookie = TRanimaciCloudflare.resolveClearance(context, "$mainUrl/")
+                if (!cookie.isNullOrBlank()) {
+                    res = requestPage(url, referer)
+                }
+            }
+        }
+
+        val r = res ?: return null
+        if (looksLikeChallenge(r.code, r.text)) return null
+        if (r.code == 404 || r.code == 410) return null
+        return r.document
+    }
+
+    // "/en" önekini aç/kapat: https://site/x <-> https://site/en/x
+    private fun alternateRoute(url: String): String {
+        val rest = url.removePrefix(mainUrl)
+        val hasEn = rest == "/en" || rest.startsWith("/en/") || rest.startsWith("/en?")
+        val alt = if (hasEn) rest.removePrefix("/en") else "/en$rest"
+        return mainUrl + (if (alt.isEmpty()) "/" else alt)
+    }
+
+    private fun routePrefix(pageUrl: String): String {
+        val rest = pageUrl.removePrefix(mainUrl)
+        return if (rest == "/en" || rest.startsWith("/en/") || rest.startsWith("/en?")) "/en" else ""
+    }
+
+    // Gerçek ikinci deneme: 404/engel/hata durumunda alternatif rotayı dener ve
+    // hangi adresin çalıştığını da döndürür (sonraki adresler aynı öneki kullansın diye).
+    private suspend fun fetchPage(url: String): Pair<Document, String>? {
+        val first = safeGet(url)
+        if (first != null) return Pair(first, url)
+        val alt = alternateRoute(url)
+        if (alt != url) {
+            val second = safeGet(alt)
+            if (second != null) return Pair(second, alt)
+        }
+        return null
+    }
+
+    private fun slugFromUrl(url: String): String =
+        url.substringBefore("?").trimEnd('/').substringAfterLast('/')
+
+    // JSON öğesi kendi adresini veriyorsa onu kullan (tahminden daha güvenilir)
+    private fun pickUrl(item: JSONObject): String? {
+        for (k in listOf("url", "href", "link", "path", "permalink")) {
+            val v = item.optString(k)
+            if (v.isNotBlank() && (v.startsWith("/") || v.startsWith("http"))) {
+                return fixUrlNull(v)
+            }
+        }
+        return null
     }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
@@ -98,7 +146,8 @@ class TRanimaci : MainAPI() {
             baseUrl
         }
 
-        val document = safeGet(url) ?: return newHomePageResponse(request.name, emptyList())
+        val (document, usedUrl) = fetchPage(url) ?: return newHomePageResponse(request.name, emptyList())
+        val prefix = routePrefix(usedUrl)
         val home = mutableListOf<SearchResponse>()
 
         // 1. Next.js __NEXT_DATA__ JSON Parser
@@ -108,7 +157,7 @@ class TRanimaci : MainAPI() {
                 val json = JSONObject(nextDataScript)
                 val pageProps = json.optJSONObject("props")?.optJSONObject("pageProps")
                 if (pageProps != null) {
-                    parseNextDataItems(pageProps, home)
+                    parseNextDataItems(pageProps, home, prefix)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "JSON parse error: ${e.message}")
@@ -202,7 +251,8 @@ class TRanimaci : MainAPI() {
     override suspend fun search(query: String): List<SearchResponse> {
         val encoded = URLEncoder.encode(query, "UTF-8")
         val searchUrl = "$mainUrl/ara?q=$encoded"
-        val document = safeGet(searchUrl) ?: safeGet("$mainUrl/en/ara?q=$encoded") ?: return emptyList()
+        val (document, usedUrl) = fetchPage(searchUrl) ?: return emptyList()
+        val prefix = routePrefix(usedUrl)
         val results = mutableListOf<SearchResponse>()
 
         val nextDataScript = document.selectFirst("script#__NEXT_DATA__")?.data()
@@ -211,7 +261,7 @@ class TRanimaci : MainAPI() {
                 val json = JSONObject(nextDataScript)
                 val pageProps = json.optJSONObject("props")?.optJSONObject("pageProps")
                 if (pageProps != null) {
-                    parseNextDataItems(pageProps, results)
+                    parseNextDataItems(pageProps, results, prefix)
                 }
             } catch (_: Exception) {}
         }
@@ -230,8 +280,10 @@ class TRanimaci : MainAPI() {
     override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
 
     override suspend fun load(url: String): LoadResponse? {
-        val fixedUrl = fixUrl(url)
-        val document = safeGet(fixedUrl) ?: return null
+        val requestedUrl = fixUrl(url)
+        val (document, fixedUrl) = fetchPage(requestedUrl) ?: return null
+        val prefix = routePrefix(fixedUrl)
+        val animeSlug = slugFromUrl(fixedUrl)
 
         val title = document.selectFirst("h1.series-title, h1.anime-title, h1.entry-title, h1")?.text()?.trim()
             ?: document.selectFirst("meta[property=og:title]")?.attr("content")?.substringBefore(" izle")?.trim()
@@ -262,7 +314,7 @@ class TRanimaci : MainAPI() {
                 val json = JSONObject(nextDataScript)
                 val pageProps = json.optJSONObject("props")?.optJSONObject("pageProps")
                 if (pageProps != null) {
-                    parseNextDataEpisodes(pageProps, episodes)
+                    parseNextDataEpisodes(pageProps, episodes, prefix, animeSlug)
                 }
             } catch (_: Exception) {}
         }
@@ -309,8 +361,8 @@ class TRanimaci : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val fixedData = fixUrl(data)
-        val document = safeGet(fixedData) ?: return false
+        val requestedData = fixUrl(data)
+        val (document, fixedData) = fetchPage(requestedData) ?: return false
         var hasFound = false
 
         // 1. Next.js player/iframe parsing from __NEXT_DATA__
@@ -364,7 +416,52 @@ class TRanimaci : MainAPI() {
             hasFound = true
         }
 
-        // 4. Fallback on data page itself
+        // 4. Sayfa/JSON/script metninde gömülü doğrudan akışlar ve gömülü oynatıcı adresleri
+        //    (Next.js oynatıcıyı tarayıcıda eklediği için iframe/video etiketi olmayabilir)
+        if (!hasFound) {
+            val raw = document.html().replace("\\/", "/")
+            val seen = mutableSetOf<String>()
+
+            val mediaRegex = Regex("https?://[^\\s\"'<>\\\\]+?\\.(?:m3u8|mp4)(?:\\?[^\\s\"'<>\\\\]*)?")
+            for (m in mediaRegex.findAll(raw)) {
+                val link = m.value
+                if (!seen.add(link)) continue
+                callback.invoke(
+                    newExtractorLink(
+                        source = name,
+                        name = "TRanimeci Stream",
+                        url = link,
+                        type = if (link.contains(".m3u8")) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
+                    ) {
+                        this.referer = fixedData
+                    }
+                )
+                hasFound = true
+            }
+
+            val hostHints = listOf(
+                "embed", "player", "iframe", "/e/", "/v/", "vidmoly", "sibnet", "ok.ru", "mail.ru",
+                "dailymotion", "filemoon", "streamtape", "dood", "mixdrop", "voe.", "vidoza", "uqload",
+                "sendvid", "pixeldrain", "drive.google.com", "fembed"
+            )
+            val assetExt = listOf(".js", ".css", ".png", ".jpg", ".jpeg", ".webp", ".svg", ".ico", ".woff", ".woff2", ".gif")
+            val urlRegex = Regex("https?://[^\\s\"'<>\\\\]+")
+            var tried = 0
+            for (m in urlRegex.findAll(raw)) {
+                val link = m.value.trimEnd(',', ';', ')')
+                if (tried >= 12) break
+                if (link.startsWith(mainUrl)) continue
+                if (assetExt.any { link.substringBefore("?").endsWith(it, ignoreCase = true) }) continue
+                if (hostHints.none { link.contains(it, ignoreCase = true) }) continue
+                if (!seen.add(link)) continue
+                tried++
+                if (loadExtractor(link, fixedData, subtitleCallback, callback)) {
+                    hasFound = true
+                }
+            }
+        }
+
+        // 5. Fallback on data page itself
         if (!hasFound) {
             hasFound = loadExtractor(fixedData, "$mainUrl/", subtitleCallback, callback)
         }
@@ -401,7 +498,7 @@ class TRanimaci : MainAPI() {
         }
     }
 
-    private fun parseNextDataItems(node: JSONObject, results: MutableList<SearchResponse>) {
+    private fun parseNextDataItems(node: JSONObject, results: MutableList<SearchResponse>, prefix: String) {
         val keys = node.keys()
         while (keys.hasNext()) {
             val key = keys.next()
@@ -422,8 +519,8 @@ class TRanimaci : MainAPI() {
                                 item.optString("cover")
                             }
                         }
-                        val cleanHref = fixUrlNull("$mainUrl/anime/$slug")
-                            ?: fixUrlNull("$mainUrl/en/anime/$slug")
+                        val cleanHref = pickUrl(item)
+                            ?: fixUrlNull("$mainUrl$prefix/anime/$slug")
                             ?: continue
                         results.add(
                             newAnimeSearchResponse(title, cleanHref, TvType.Anime) {
@@ -433,12 +530,12 @@ class TRanimaci : MainAPI() {
                     }
                 }
             } else if (value is JSONObject) {
-                parseNextDataItems(value, results)
+                parseNextDataItems(value, results, prefix)
             }
         }
     }
 
-    private fun parseNextDataEpisodes(node: JSONObject, episodes: MutableList<Episode>) {
+    private fun parseNextDataEpisodes(node: JSONObject, episodes: MutableList<Episode>, prefix: String, animeSlug: String) {
         val keys = node.keys()
         while (keys.hasNext()) {
             val key = keys.next()
@@ -455,11 +552,16 @@ class TRanimaci : MainAPI() {
                         } else {
                             i + 1
                         }
-                        val epSlug = item.optString("slug").ifBlank { "$epNum" }
+                        val epSlug = item.optString("slug")
                         val epTitle = item.optString("title").ifBlank { "Bölüm $epNum" }
-                        val epUrl = fixUrlNull("$mainUrl/video/$epSlug")
-                            ?: fixUrlNull("$mainUrl/en/video/$epSlug")
-                            ?: continue
+                        val built = if (epSlug.isNotBlank()) {
+                            fixUrlNull("$mainUrl$prefix/video/$epSlug")
+                        } else if (animeSlug.isNotBlank()) {
+                            fixUrlNull("$mainUrl$prefix/video/$animeSlug-$epNum-bolum")
+                        } else {
+                            null
+                        }
+                        val epUrl = pickUrl(item) ?: built ?: continue
 
                         episodes.add(
                             newEpisode(epUrl) {
@@ -470,7 +572,7 @@ class TRanimaci : MainAPI() {
                     }
                 }
             } else if (value is JSONObject) {
-                parseNextDataEpisodes(value, episodes)
+                parseNextDataEpisodes(value, episodes, prefix, animeSlug)
             }
         }
     }
