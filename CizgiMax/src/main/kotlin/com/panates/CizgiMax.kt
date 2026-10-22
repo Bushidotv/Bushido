@@ -4,6 +4,7 @@ package com.panates
 
 import android.util.Log
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
@@ -43,8 +44,6 @@ data class CmxCaption(
 class CizgiMax : MainAPI() {
     companion object {
         private const val TAG = "CizgiMax"
-        private const val DEFAULT_USER_AGENT =
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
     }
 
     private val cloudflareKiller by lazy { CloudflareKiller() }
@@ -57,8 +56,8 @@ class CizgiMax : MainAPI() {
     override val supportedTypes = setOf(TvType.Cartoon)
 
     override var sequentialMainPage            = true
-    override var sequentialMainPageDelay       = 150L
-    override var sequentialMainPageScrollDelay = 150L
+    override var sequentialMainPageDelay       = 250L
+    override var sequentialMainPageScrollDelay = 250L
 
     override val mainPage = mainPageOf(
         "/"                    to "Son Eklenenler",
@@ -72,48 +71,27 @@ class CizgiMax : MainAPI() {
         "/tur/cocuk/"          to "Çocuk"
     )
 
-    private suspend fun safeGet(url: String, referer: String = "$mainUrl/"): NiceResponse? {
-        val context = CizgiMaxPlugin.pluginContext
-
-        if (CizgiMaxCloudflare.clearanceCookie.isNullOrBlank() && context != null) {
-            CizgiMaxCloudflare.resolveClearance(context, "$mainUrl/")
-        }
-
-        val ua = CizgiMaxCloudflare.userAgent ?: DEFAULT_USER_AGENT
-        val cookie = CizgiMaxCloudflare.clearanceCookie
-
-        val headers = mutableMapOf(
-            "User-Agent" to ua,
-            "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-            "Referer" to referer
-        )
-        if (!cookie.isNullOrBlank()) {
-            headers["Cookie"] = cookie
-        }
-
-        return try {
-            val res = app.get(
-                url,
-                headers = headers,
-                interceptor = cloudflareKiller
-            )
-
-            if (res.text.contains("Just a moment") && context != null) {
-                CizgiMaxCloudflare.clearanceCookie = null
-                val newCookie = CizgiMaxCloudflare.resolveClearance(context, url)
-                if (!newCookie.isNullOrBlank()) {
-                    headers["Cookie"] = newCookie
-                    app.get(url, headers = headers, interceptor = cloudflareKiller)
-                } else {
-                    res
-                }
-            } else {
-                res
+    /**
+     * Two-tier fetch: try OkHttp+CloudflareKiller first (fast).
+     * If the response is a Cloudflare challenge page, fall back
+     * to a full WebView load that lets the browser engine solve
+     * Turnstile natively.
+     */
+    private suspend fun safeFetch(url: String): Document? {
+        // Tier 1 – OkHttp (fast, works when CF is not active)
+        try {
+            val res: NiceResponse = app.get(url, interceptor = cloudflareKiller)
+            val text = res.text
+            if (text.length > 500 && !text.contains("Just a moment")) {
+                return res.document
             }
         } catch (e: Exception) {
-            Log.e(TAG, "safeGet error for $url: ${e.message}")
-            null
+            Log.d(TAG, "OkHttp attempt failed for $url: ${e.message}")
         }
+
+        // Tier 2 – WebView (handles Turnstile)
+        val ctx = CizgiMaxPlugin.pluginContext ?: return null
+        return CizgiMaxWebView.fetchDocument(ctx, url)
     }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
@@ -124,8 +102,8 @@ class CizgiMax : MainAPI() {
             "$mainUrl${request.data}"
         }
 
-        val res = safeGet(url) ?: return newHomePageResponse(request.name, emptyList())
-        val home = res.document
+        val document = safeFetch(url) ?: return newHomePageResponse(request.name, emptyList())
+        val home = document
             .select("div.film-item, div.film-list div.film-item, article")
             .mapNotNull { it.toSearchResult() }
             .distinctBy { it.url }
@@ -137,19 +115,16 @@ class CizgiMax : MainAPI() {
         val nameEl = this.selectFirst("a.film-name, h2 a, h3 a, a.title, .film-name")
         val anchor = this.selectFirst("a.poster, a[href*='/dizi/'], a[href*='/film/'], a")
 
-        val rawHref = nameEl?.attr("href")?.trim()
-            ?.ifBlank { anchor?.attr("href")?.trim() }
+        val rawHref = nameEl?.attr("href")?.trim()?.ifBlank { null }
+            ?: anchor?.attr("href")?.trim()?.ifBlank { null }
             ?: return null
         val href = fixUrlNull(rawHref) ?: return null
 
-        val rawTitle = nameEl?.text()?.trim()
-            ?.ifBlank { this.attr("data-anime-name").trim() }
-            ?.ifBlank { anchor?.attr("title")?.trim() }
-            ?.ifBlank { this.selectFirst("h1, h2, h3, h4, .title, .film-name")?.text()?.trim() }
-            ?: href.trimEnd('/').substringAfterLast('/')
-                .replace('-', ' ')
-                .replace('_', ' ')
-                .replaceFirstChar { it.uppercase() }
+        val rawTitle = nameEl?.text()?.trim()?.ifBlank { null }
+            ?: this.attr("data-anime-name").trim().ifBlank { null }
+            ?: anchor?.attr("title")?.trim()?.ifBlank { null }
+            ?: this.selectFirst("h1, h2, h3, h4, .title, .film-name")?.text()?.trim()?.ifBlank { null }
+            ?: href.trimEnd('/').substringAfterLast('/').replace('-', ' ').replaceFirstChar { it.uppercase() }
 
         if (rawTitle.isBlank()) return null
 
@@ -157,9 +132,8 @@ class CizgiMax : MainAPI() {
         val poster = img?.let {
             it.attr("data-src").ifBlank {
                 it.attr("data-lazy-src").ifBlank {
-                    it.attr("srcset").split(" ").firstOrNull()?.ifBlank {
-                        it.attr("src")
-                    }
+                    it.attr("srcset").split(" ").firstOrNull()?.ifBlank { null }
+                        ?: it.attr("src")
                 }
             }
         }
@@ -171,8 +145,8 @@ class CizgiMax : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
         val encoded = URLEncoder.encode(query, "UTF-8")
-        val res = safeGet("$mainUrl/ara/?q=$encoded") ?: return emptyList()
-        return res.document
+        val document = safeFetch("$mainUrl/ara/?q=$encoded") ?: return emptyList()
+        return document
             .select("div.film-list div.film-item, div.film-item, article")
             .mapNotNull { it.toSearchResult() }
             .distinctBy { it.url }
@@ -181,8 +155,7 @@ class CizgiMax : MainAPI() {
     override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
 
     override suspend fun load(url: String): LoadResponse? {
-        val res = safeGet(url) ?: return null
-        val document = res.document
+        val document = safeFetch(url) ?: return null
 
         val title = document.selectFirst("div.anime-head-titles h1, h1.entry-title, h1")?.text()?.trim()?.ifBlank { null }
             ?: document.selectFirst("meta[property=og:title]")?.attr("content")?.substringBefore(" izle")?.trim()
@@ -191,8 +164,7 @@ class CizgiMax : MainAPI() {
         val poster = fixUrlNull(
             document.selectFirst("div.anime-poster img")?.attr("src")
                 ?: document.selectFirst("meta[property=og:image]")?.attr("content")
-                ?: document.selectFirst("img.poster")?.attr("data-src")
-                ?: document.selectFirst("img.poster")?.attr("src")
+                ?: document.selectFirst("img.poster")?.let { it.attr("data-src").ifBlank { it.attr("src") } }
         )
 
         val description = document.selectFirst("p.anime-desc, div.synopsis, meta[property=og:description]")?.let {
@@ -239,24 +211,30 @@ class CizgiMax : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit,
     ): Boolean {
-        val res = safeGet(data) ?: return false
-        val html = res.text
+        val document = safeFetch(data) ?: return false
+        val html = document.html()
 
         // Server list base64-embedded: var servers = JSON.parse(atob("..."))
-        val servers = Regex("""var\s+servers\s*=\s*JSON\.parse\(atob\("([^"]+)"\)\)""")
-            .find(html)
-            ?.groupValues?.get(1)
-            ?.replace("\\/", "/")
-            ?.let { json -> runCatching { ObjectMapper().readValue(json, object : TypeReference<List<CmxServer>>() {}) }.getOrNull() }
-            ?: emptyList()
+        val b64 = Regex("""var\s+servers\s*=\s*JSON\.parse\(atob\("([^"]+)"\)\)""")
+            .find(html)?.groupValues?.get(1)
+
+        val servers: List<CmxServer> = if (b64 != null) {
+            val decoded = try {
+                String(android.util.Base64.decode(b64, android.util.Base64.DEFAULT))
+            } catch (_: Exception) { b64.replace("\\/", "/") }
+            runCatching {
+                ObjectMapper().readValue(decoded, object : TypeReference<List<CmxServer>>() {})
+            }.getOrNull() ?: emptyList()
+        } else {
+            emptyList()
+        }
 
         for (server in servers) {
             val route = server.streamUrl ?: server.src ?: continue
 
-            // byse servers: /api/stream sequence -> json {url, urls[], captions}
             if (server.type.equals("byse", true)) {
                 val resolve = runCatching {
-                    val resp = safeGet(fixUrl(route), referer = data)?.text ?: ""
+                    val resp = app.get(fixUrl(route), referer = data, interceptor = cloudflareKiller).text
                     ObjectMapper().readValue(resp, CmxStream::class.java)
                 }.getOrNull() ?: continue
 
@@ -294,19 +272,17 @@ class CizgiMax : MainAPI() {
                 continue
             }
 
-            // iframe servers: /oynat/?t=<jwt> 302-redirects to the embed host
+            // iframe servers
             try {
-                val resp = safeGet(fixUrl(route), referer = data)
-                val embedUrl = resp?.url
+                val resp = app.get(fixUrl(route), referer = data, interceptor = cloudflareKiller)
+                val embedUrl = resp.url
                 if (fixUrl(route) == embedUrl || embedUrl == null) continue
                 loadExtractor(embedUrl, "$mainUrl/", subtitleCallback, callback)
-            } catch (_: Exception) {
-                // embed unreachable - try next server
-            }
+            } catch (_: Exception) {}
         }
 
-        // Classic extractor chain for direct iframes on the page
-        for (frame in Jsoup.parse(html).select("iframe[src]")) {
+        // Classic iframes
+        for (frame in document.select("iframe[src]")) {
             val src = frame.attr("src").trim()
             if (src.isBlank() || src.contains("/oynat/") || !src.startsWith("http")) continue
             loadExtractor(fixUrl(src), "$mainUrl/", subtitleCallback, callback)
