@@ -1,18 +1,15 @@
-version = 2
+dependencies {
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+}
+
+version = 3
 
 cloudstream {
-    authors     = listOf("Panates", "keyiflerolsun")
+    authors     = listOf("Bushido")
     language    = "tr"
-    description = " HD çizgi film ve animasyon izleme adresi — cizgimax.online"
+    description = "HD çizgi film ve animasyon izleme adresi - cizgimax.online"
 
-    /**
-     * Status int as the following:
-     * 0: Down
-     * 1: Ok
-     * 2: Slow
-     * 3: Beta only
-    **/
-    status  = 3
+    status  = 1
     tvTypes = listOf("Cartoon")
-    iconUrl = "https://www.google.com/s2/favicons?domain=cizgimax.online&sz=%size%"
+    iconUrl = "https://www.google.com/s2/favicons?domain=cizgimax.online&sz=128"
 }
