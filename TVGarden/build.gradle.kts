@@ -1,4 +1,8 @@
 // ! Bu araç @Bushido tarafından yazılmıştır.
+dependencies {
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+}
+
 version = 11
 
 cloudstream {
